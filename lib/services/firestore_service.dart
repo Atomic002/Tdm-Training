@@ -380,17 +380,69 @@ class FirestoreService {
 
   Future<List<TaskModel>> getActiveTasks() async {
     try {
-      final snapshot = await _db
-          .collection('tasks')
-          .where('isActive', isEqualTo: true)
-          .orderBy('order')
-          .get();
-      return snapshot.docs
-          .map((doc) => TaskModel.fromFirestore(doc))
-          .toList();
-    } catch (e) {
-      print('Error getting active tasks: $e');
-      return [];
+      print('DEBUG [FirestoreService]: tasks collection dan o\'qish boshlandi...');
+
+      // Avval composite index bilan urinish (isActive + order)
+      try {
+        final snapshot = await _db
+            .collection('tasks')
+            .where('isActive', isEqualTo: true)
+            .orderBy('order')
+            .get();
+
+        print('DEBUG [FirestoreService]: ${snapshot.docs.length} ta faol vazifa topildi (index bilan)');
+        final tasks = snapshot.docs
+            .map((doc) => TaskModel.fromFirestore(doc))
+            .toList();
+
+        return tasks;
+      } catch (indexError) {
+        // Agar composite index yo'q bo'lsa, faqat isActive filter ishlatamiz
+        print('DEBUG [FirestoreService]: ⚠️ Composite index yo\'q, fallback query ishlatilmoqda...');
+        print('DEBUG [FirestoreService]: Index xatosi: $indexError');
+
+        final snapshot = await _db
+            .collection('tasks')
+            .where('isActive', isEqualTo: true)
+            .get();
+
+        print('DEBUG [FirestoreService]: ${snapshot.docs.length} ta faol vazifa topildi (fallback)');
+
+        // In-memory sort qilamiz
+        final tasks = snapshot.docs
+            .map((doc) => TaskModel.fromFirestore(doc))
+            .toList();
+
+        tasks.sort((a, b) => a.order.compareTo(b.order));
+        print('DEBUG [FirestoreService]: Vazifalar in-memory sort qilindi');
+
+        return tasks;
+      }
+    } catch (e, stackTrace) {
+      print('DEBUG [FirestoreService]: ❌ JIDDIY XATOLIK vazifalarni yuklashda!');
+      print('DEBUG [FirestoreService]: Xato: $e');
+      print('DEBUG [FirestoreService]: Stack trace: $stackTrace');
+
+      // Oxirgi urinish - hech qanday filter yo'q
+      try {
+        print('DEBUG [FirestoreService]: Oxirgi urinish - barcha vazifalarni olish...');
+        final snapshot = await _db.collection('tasks').get();
+        print('DEBUG [FirestoreService]: Jami ${snapshot.docs.length} ta vazifa topildi (filter yo\'qsiz)');
+
+        final tasks = snapshot.docs
+            .map((doc) => TaskModel.fromFirestore(doc))
+            .where((task) => task.isActive)
+            .toList();
+
+        tasks.sort((a, b) => a.order.compareTo(b.order));
+        print('DEBUG [FirestoreService]: ${tasks.length} ta faol vazifa filtrlandi va sort qilindi');
+
+        return tasks;
+      } catch (finalError) {
+        print('DEBUG [FirestoreService]: ❌ BARCHA URINISHLAR MUVAFFAQIYATSIZ!');
+        print('DEBUG [FirestoreService]: Final xato: $finalError');
+        return [];
+      }
     }
   }
 

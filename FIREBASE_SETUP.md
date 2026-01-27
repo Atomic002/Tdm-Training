@@ -64,6 +64,29 @@ firebase init firestore
 firebase deploy --only firestore:rules
 ```
 
+### 3.3 Firestore Indexes Deploy qilish (MUHIM!)
+
+Vazifalar to'g'ri ishlashi uchun **Composite Indexes** kerak!
+
+**Option 1: Firebase Console orqali**
+1. **Firestore Database** → **Indexes** tab
+2. **Add Index** tugmasini bosing
+3. **Collection ID**: `tasks`
+4. Field #1: `isActive` (Ascending)
+5. Field #2: `order` (Ascending)
+6. **Create** tugmasini bosing ✅
+
+**Option 2: Firebase CLI orqali (Tavsiya etiladi)**
+```bash
+firebase login
+firebase init firestore  # firestore.indexes.json faylini tanlang
+firebase deploy --only firestore:indexes
+```
+
+`firestore.indexes.json` fayli loyihada allaqachon mavjud va to'liq sozlangan.
+
+**MUHIM**: Index yaratish 5-10 daqiqa vaqt olishi mumkin. Console'da "Building" holatini ko'rasiz. To'liq tayyor bo'lguncha kuting!
+
 ---
 
 ## 🎯 4. Firestore Collections yaratish
@@ -235,6 +258,16 @@ DEBUG: Firestore'dan X ta vazifa topildi
 1. Firestore Console → **tasks** collection bor-yo'qligini tekshiring
 2. `isActive: true` ekanligini tekshiring
 3. `type` field **string** formatida (`"telegramSubscribe"`) ekanligini tekshiring
+4. **Composite Index** yaratilganini tekshiring (3.3-bo'limga qarang)
+
+**Agar console'da "Composite index yo'q, fallback query" ko'rsatsa:**
+```
+DEBUG [FirestoreService]: ⚠️ Composite index yo'q, fallback query ishlatilmoqda...
+DEBUG [FirestoreService]: Index xatosi: ...
+```
+Bu normal! Ilova ishlaydi, lekin Firestore Index yaratish tavsiya etiladi:
+- Firebase Console → Indexes → Add Index (3.3-bo'limga qarang)
+- Yoki `firebase deploy --only firestore:indexes` ishlatiladi
 
 **Agar PERMISSION_DENIED xatosi chiqsa:**
 1. Security Rules to'g'ri publish qilganingizni tekshiring
@@ -256,9 +289,12 @@ DEBUG: Firestore'dan X ta vazifa topildi
 
 Vazifalar sahifasiga o'tganda quyidagi DEBUG xabarlar chiqishi kerak:
 
+**Agar Composite Index mavjud bo'lsa:**
 ```
 I/flutter (12345): DEBUG: ========== VAZIFALARNI YUKLASH BOSHLANDI ==========
 I/flutter (12345): DEBUG: User UID: abc123xyz...
+I/flutter (12345): DEBUG [FirestoreService]: tasks collection dan o'qish boshlandi...
+I/flutter (12345): DEBUG [FirestoreService]: 2 ta faol vazifa topildi (index bilan)
 I/flutter (12345): DEBUG: Firestore'dan 2 ta vazifa topildi
 I/flutter (12345): DEBUG: ✓ Vazifa #1 - Telegram kanalga obuna bo'ling
 I/flutter (12345): DEBUG:   Type: TaskType.telegramSubscribe, Active: true, Reward: 50
@@ -270,6 +306,25 @@ I/flutter (12345): DEBUG: 0 ta vazifa bugun bajarilgan
 I/flutter (12345): DEBUG: User ma'lumoti yuklandi: Axi Zava
 I/flutter (12345): DEBUG: ========== YUKLASH TUGADI ==========
 ```
+
+**Agar Index yo'q bo'lsa (fallback mode):**
+```
+I/flutter (12345): DEBUG: ========== VAZIFALARNI YUKLASH BOSHLANDI ==========
+I/flutter (12345): DEBUG: User UID: abc123xyz...
+I/flutter (12345): DEBUG [FirestoreService]: tasks collection dan o'qish boshlandi...
+I/flutter (12345): DEBUG [FirestoreService]: ⚠️ Composite index yo'q, fallback query ishlatilmoqda...
+I/flutter (12345): DEBUG [FirestoreService]: Index xatosi: [cloud_firestore/failed-precondition] ...
+I/flutter (12345): DEBUG [FirestoreService]: 2 ta faol vazifa topildi (fallback)
+I/flutter (12345): DEBUG [FirestoreService]: Vazifalar in-memory sort qilindi
+I/flutter (12345): DEBUG: Firestore'dan 2 ta vazifa topildi
+I/flutter (12345): DEBUG: ✓ Vazifa #1 - Telegram kanalga obuna bo'ling
+I/flutter (12345): DEBUG:   Type: TaskType.telegramSubscribe, Active: true, Reward: 50
+I/flutter (12345): DEBUG: 0 ta vazifa bugun bajarilgan
+I/flutter (12345): DEBUG: User ma'lumoti yuklandi: Axi Zava
+I/flutter (12345): DEBUG: ========== YUKLASH TUGADI ==========
+```
+
+**MUHIM:** Fallback mode'da ham ilova to'g'ri ishlaydi, faqat biroz sekinroq bo'ladi. Index yaratish tavsiya etiladi!
 
 **Agar bu xabarlar chiqmasa:**
 1. Console filter'da `package:com.rahmatullo.tdm_training` yozilganini tekshiring
