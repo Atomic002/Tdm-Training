@@ -760,4 +760,110 @@ class FirestoreService {
       print('Error setting user coins: $e');
     }
   }
+
+  // ==================== ADMIN: TASK STATISTICS ====================
+
+  /// Har bir vazifa uchun statistika - nechta user bajargan
+  Future<Map<String, int>> getTaskCompletionCounts() async {
+    try {
+      final snapshot = await _db.collection('task_completions').get();
+      final Map<String, int> counts = {};
+
+      for (var doc in snapshot.docs) {
+        final taskId = doc.data()['taskId'] as String?;
+        if (taskId != null) {
+          counts[taskId] = (counts[taskId] ?? 0) + 1;
+        }
+      }
+
+      return counts;
+    } catch (e) {
+      print('Error getting task completion counts: $e');
+      return {};
+    }
+  }
+
+  /// Bir vazifa uchun barcha bajargan userlarni olish
+  Future<List<Map<String, dynamic>>> getTaskCompletions(String taskId) async {
+    try {
+      final snapshot = await _db
+          .collection('task_completions')
+          .where('taskId', isEqualTo: taskId)
+          .orderBy('completedAt', descending: true)
+          .get();
+
+      final List<Map<String, dynamic>> results = [];
+
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final uid = data['uid'] as String?;
+
+        if (uid != null) {
+          final user = await getUser(uid);
+          if (user != null) {
+            results.add({
+              'user': user,
+              'completedAt': (data['completedAt'] as Timestamp).toDate(),
+              'reward': data['reward'] ?? 0,
+              'date': data['date'] ?? '',
+            });
+          }
+        }
+      }
+
+      return results;
+    } catch (e) {
+      print('Error getting task completions: $e');
+      return [];
+    }
+  }
+
+  /// Vazifa uchun statistika - bugun, umumiy
+  Future<Map<String, dynamic>> getTaskStats(String taskId) async {
+    try {
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+
+      // Barcha completions
+      final allSnapshot = await _db
+          .collection('task_completions')
+          .where('taskId', isEqualTo: taskId)
+          .get();
+
+      // Bugungi completions
+      final todaySnapshot = await _db
+          .collection('task_completions')
+          .where('taskId', isEqualTo: taskId)
+          .where('date', isEqualTo: today)
+          .get();
+
+      // Unique users (hamma vaqt)
+      final uniqueUsers = <String>{};
+      for (var doc in allSnapshot.docs) {
+        final uid = doc.data()['uid'] as String?;
+        if (uid != null) uniqueUsers.add(uid);
+      }
+
+      // Unique users (bugun)
+      final todayUniqueUsers = <String>{};
+      for (var doc in todaySnapshot.docs) {
+        final uid = doc.data()['uid'] as String?;
+        if (uid != null) todayUniqueUsers.add(uid);
+      }
+
+      return {
+        'totalCompletions': allSnapshot.docs.length,
+        'uniqueUsers': uniqueUsers.length,
+        'todayCompletions': todaySnapshot.docs.length,
+        'todayUniqueUsers': todayUniqueUsers.length,
+      };
+    } catch (e) {
+      print('Error getting task stats: $e');
+      return {
+        'totalCompletions': 0,
+        'uniqueUsers': 0,
+        'todayCompletions': 0,
+        'todayUniqueUsers': 0,
+      };
+    }
+  }
 }
