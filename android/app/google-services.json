@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "697555897090",
+    "project_id": "tdm-training",
+    "storage_bucket": "tdm-training.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:697555897090:android:1fce90684cd5339c37901b",
+        "android_client_info": {
+          "package_name": "com.rahmatullo.tdm_training"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "697555897090-goulbvj06l6hqmj1ogadr7urhr74tdg3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rahmatullo.tdm_training",
+            "certificate_hash": "9c32bc46bd8f603b7ca20e7f9ea8fc24ffa99018"
+          }
+        },
+        {
+          "client_id": "697555897090-pie7s267t6mi6f58nmph9256o9l655tj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDNWEQ-FvaPx1ie-mVkwcwZckz_dMYOBqE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "697555897090-pie7s267t6mi6f58nmph9256o9l655tj.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

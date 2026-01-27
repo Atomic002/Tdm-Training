@@ -1,10 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_application_1/screens/home_srceen.dart';
+import 'package:flutter_application_1/screens/login_screen.dart';
 import 'package:flutter_application_1/screens/no_connection_screen.dart';
 
 import 'package:flutter_application_1/services/admob_service.dart';
+import 'package:flutter_application_1/services/firestore_service.dart';
 import 'package:flutter_application_1/utils/app_colors.dart';
 import 'package:internet_connection_checker/internet_connection_checker.dart';
 
@@ -26,6 +31,19 @@ void main() async {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
+
+  // Initialize Firebase
+  try {
+    await Firebase.initializeApp();
+    // Firestore offline persistence
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+    print('Firebase initialized successfully');
+  } catch (e) {
+    print('Firebase initialization failed: $e');
+  }
 
   // Initialize AdMob with error handling
   try {
@@ -145,7 +163,22 @@ class _MyAppState extends State<MyApp> {
       home: _hasInternet == null
           ? const _LoadingScreen()
           : _hasInternet!
-          ? const HomeScreen()
+          ? StreamBuilder<User?>(
+              stream: FirebaseAuth.instance.authStateChanges(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const _LoadingScreen();
+                }
+                if (snapshot.hasData) {
+                  // User doc yaratish va daily login
+                  final user = snapshot.data!;
+                  FirestoreService().createOrUpdateUser(user);
+                  FirestoreService().processDailyLogin(user.uid);
+                  return const HomeScreen();
+                }
+                return const LoginScreen();
+              },
+            )
           : NoInternetScreen(onRetry: _checkInitialConnection),
     );
   }

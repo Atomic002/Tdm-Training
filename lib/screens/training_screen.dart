@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_1/models/difficulty.dart';
-import 'package:flutter_application_1/services/coin_service.dart';
+import 'package:flutter_application_1/services/firestore_service.dart';
 import 'package:flutter_application_1/services/admob_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:math';
@@ -22,7 +23,8 @@ class TrainingScreen extends StatefulWidget {
 class _TrainingScreenState extends State<TrainingScreen>
     with TickerProviderStateMixin {
   final ScoreService _scoreService = ScoreService();
-  final CoinService _coinService = CoinService();
+  final FirestoreService _firestoreService = FirestoreService();
+  String? get _uid => FirebaseAuth.instance.currentUser?.uid;
   GameState _gameState = GameState();
 
   Timer? _gameTimer;
@@ -42,13 +44,13 @@ class _TrainingScreenState extends State<TrainingScreen>
   double _birdVelocity = 0.0;
   final double _gravity = 0.8;
   final double _jumpStrength = -12.0;
-  List<Offset> _pipes = [];
+  final List<Offset> _pipes = [];
   Timer? _pipeTimer;
   bool _isFlappyBirdMode = false;
   int _passedPipes = 0;
 
   final Random _random = Random();
-  int _coinsEarned = 1;
+  final int _coinsEarned = 1;
   bool _canPlayGame = true;
   bool _isShowingAd = false;
   int _currentMatch = 1;
@@ -56,7 +58,7 @@ class _TrainingScreenState extends State<TrainingScreen>
   int _timeLeft = 0;
 
   // Ko'p nishonlar uchun
-  List<TargetInfo> _targets = [];
+  final List<TargetInfo> _targets = [];
 
   // Reklama vaqti uchun
   static const int AD_COOLDOWN_MINUTES = 1;
@@ -144,7 +146,7 @@ class _TrainingScreenState extends State<TrainingScreen>
   }
 
   Future<void> _checkGamePermission() async {
-    final canPlay = await _coinService.canPlayGame();
+    final canPlay = _uid != null ? await _firestoreService.canPlayGame(_uid!) : false;
     setState(() {
       _canPlayGame = canPlay;
     });
@@ -193,7 +195,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                   Icon(Icons.info_outline, color: AppColors.info, size: 32),
                   const SizedBox(height: 8),
                   Text(
-                    'Kuniga ${CoinService.maxDailyGames} marta o\'ynash mumkin',
+                    'Kuniga ${FirestoreService.maxDailyGames} marta o\'ynash mumkin',
                     style: const TextStyle(
                       color: AppColors.textSecondary,
                       fontWeight: FontWeight.bold,
@@ -637,7 +639,7 @@ class _TrainingScreenState extends State<TrainingScreen>
       difficulty: widget.difficulty,
     );
 
-    _coinService.addCoins(1);
+    if (_uid != null) _firestoreService.addCoins(_uid!, 1);
     _totalMatches++;
 
     _coinAnimationController.forward();
@@ -802,7 +804,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                 ),
                 const SizedBox(height: 16),
                 FutureBuilder<Map<String, dynamic>?>(
-                  future: _coinService.getDailyStatus(),
+                  future: _uid != null ? _firestoreService.getDailyStatus(_uid!) : Future.value(null),
                   builder: (context, snapshot) {
                     if (snapshot.hasData && snapshot.data != null) {
                       final status = snapshot.data!;
@@ -864,7 +866,7 @@ class _TrainingScreenState extends State<TrainingScreen>
             ElevatedButton.icon(
               onPressed: () async {
                 Navigator.pop(context);
-                final canPlay = await _coinService.canPlayGame();
+                final canPlay = _uid != null ? await _firestoreService.canPlayGame(_uid!) : false;
                 if (canPlay) {
                   setState(() {
                     _currentMatch++;
@@ -977,7 +979,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                 ),
                 const SizedBox(width: 4),
                 FutureBuilder<int>(
-                  future: _coinService.getCurrentCoins(),
+                  future: _firestoreService.getCoins(),
                   builder: (context, snapshot) {
                     return Text(
                       '${snapshot.data ?? 0}',
@@ -1175,7 +1177,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                 ),
 
                 // Pipe'lar
-                ..._pipes.map((pipe) => _buildPipe(pipe)).toList(),
+                ..._pipes.map((pipe) => _buildPipe(pipe)),
 
                 // Tap ko'rsatmasi
                 if (_pipes.isEmpty)
@@ -1231,7 +1233,7 @@ class _TrainingScreenState extends State<TrainingScreen>
 
               // Oddiy nishonlar rejimi
               if (!_isFlappyBirdMode)
-                ..._targets.map((target) => _buildTarget(target)).toList(),
+                ..._targets.map((target) => _buildTarget(target)),
             ],
 
             if (!_gameState.isGameActive && !_canPlayGame)

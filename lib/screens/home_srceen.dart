@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_application_1/services/admob_service.dart';
-import 'package:flutter_application_1/services/coin_service.dart';
+import 'package:flutter_application_1/services/auth_service.dart';
+import 'package:flutter_application_1/services/firestore_service.dart';
+import 'package:flutter_application_1/models/app_user.dart';
 import 'package:flutter_application_1/widgets/ad_banner.dart';
 import 'package:flutter_application_1/screens/difficulty_selection_screen.dart';
+import 'package:flutter_application_1/screens/login_screen.dart';
 import 'package:flutter_application_1/screens/stats_screen.dart';
 import 'package:flutter_application_1/screens/coin_screen.dart';
+import 'package:flutter_application_1/screens/tasks_screen.dart';
+import 'package:flutter_application_1/screens/leaderboard_screen.dart';
+import 'package:flutter_application_1/screens/admin/admin_dashboard_screen.dart';
 import '../utils/app_colors.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -20,10 +27,12 @@ class _HomeScreenState extends State<HomeScreen>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
-  final CoinService _coinService = CoinService();
+  final FirestoreService _firestoreService = FirestoreService();
+  final User? _user = FirebaseAuth.instance.currentUser;
   int _currentCoins = 0;
   int _totalUC = 0;
   bool _isLoading = true;
+  bool _isAdmin = false;
 
   final ScrollController _scrollController = ScrollController();
 
@@ -33,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen>
     _initializeAnimations();
     _loadData();
     _preloadAds();
+    _checkAdmin();
   }
 
   void _initializeAnimations() {
@@ -65,55 +75,38 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  Future<void> _checkAdmin() async {
+    if (_user == null) return;
+    final admin = await _firestoreService.isAdmin(_user!.uid);
+    if (mounted) {
+      setState(() => _isAdmin = admin);
+    }
+  }
+
   Future<void> _loadData() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
-      final coins = await _coinService.getCoins();
-      final history = await _coinService.getExchangeHistory();
-      print('HomeScreen History: $history'); // Debug log
-
-      final totalUC = (history ?? []).fold<int>(0, (sum, exchange) {
-        try {
-          if (exchange is Map<String, dynamic> &&
-              exchange.containsKey('ucAmount')) {
-            final ucAmount = exchange['ucAmount'];
-            if (ucAmount is int) {
-              return sum + ucAmount;
-            } else if (ucAmount is double) {
-              return sum + ucAmount.toInt();
-            } else if (ucAmount is String) {
-              return sum + (int.tryParse(ucAmount) ?? 0);
-            }
-          }
-          print('Invalid exchange item in HomeScreen: $exchange');
-          return sum;
-        } catch (e) {
-          print(
-            'Error processing exchange item in HomeScreen: $e, Item: $exchange',
-          );
-          return sum;
-        }
-      });
+      if (_user == null) return;
+      final appUser = await _firestoreService.getUser(_user!.uid);
 
       if (mounted) {
         setState(() {
-          _currentCoins = coins ?? 0;
-          _totalUC = totalUC;
+          _currentCoins = appUser?.coins ?? 0;
+          _totalUC = appUser?.totalUCExchanged ?? 0;
           _isLoading = false;
         });
       }
-    } catch (e, stackTrace) {
+    } catch (e) {
       print('Error loading data in HomeScreen: $e');
-      print('Stack trace: $stackTrace');
       if (mounted) {
         setState(() {
           _currentCoins = 0;
           _totalUC = 0;
           _isLoading = false;
         });
-        _showErrorSnackBar('Ma\'lumotlarni yuklashda xatolik yuz berdi: $e');
+        _showErrorSnackBar('Ma\'lumotlarni yuklashda xatolik yuz berdi');
       }
     }
   }
@@ -121,12 +114,8 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _preloadAds() async {
     try {
       AdMobService.loadInterstitialAd();
-      print('Interstitial ad preloaded in HomeScreen');
     } catch (e) {
       print('Error preloading ads in HomeScreen: $e');
-      if (mounted) {
-        _showErrorSnackBar('Reklama yuklashda xatolik: $e');
-      }
     }
   }
 
@@ -247,8 +236,7 @@ class _HomeScreenState extends State<HomeScreen>
                               context,
                               MaterialPageRoute(
                                 builder: (context) => CoinScreen(
-                                  onUpdate:
-                                      _loadData, // Pass callback to refresh data
+                                  onUpdate: _loadData,
                                 ),
                               ),
                             );
@@ -284,7 +272,7 @@ class _HomeScreenState extends State<HomeScreen>
                                 ),
                                 const SizedBox(width: 4),
                                 _isLoading
-                                    ? SizedBox(
+                                    ? const SizedBox(
                                         width: 16,
                                         height: 16,
                                         child: CircularProgressIndicator(
@@ -340,7 +328,7 @@ class _HomeScreenState extends State<HomeScreen>
                               ),
                               const SizedBox(width: 4),
                               _isLoading
-                                  ? SizedBox(
+                                  ? const SizedBox(
                                       width: 16,
                                       height: 16,
                                       child: CircularProgressIndicator(
@@ -394,7 +382,6 @@ class _HomeScreenState extends State<HomeScreen>
                                 ),
                                 child: Column(
                                   children: [
-                                    // Animated logo
                                     TweenAnimationBuilder<double>(
                                       tween: Tween(begin: 0.0, end: 1.0),
                                       duration: const Duration(
@@ -509,6 +496,24 @@ class _HomeScreenState extends State<HomeScreen>
                                   ),
                                   SizedBox(height: isSmallScreen ? 12 : 16),
                                   _buildMenuButton(
+                                    title: 'VAZIFALAR',
+                                    subtitle: 'Vazifa bajaring — coin oling',
+                                    icon: Icons.assignment_turned_in,
+                                    onTap: () => _navigateToTasks(),
+                                    color: Colors.green.shade600,
+                                    isSmallScreen: isSmallScreen,
+                                  ),
+                                  SizedBox(height: isSmallScreen ? 12 : 16),
+                                  _buildMenuButton(
+                                    title: 'REYTING',
+                                    subtitle: 'Top o\'yinchilar reytingi',
+                                    icon: Icons.leaderboard,
+                                    onTap: () => _navigateToLeaderboard(),
+                                    color: Colors.purple.shade600,
+                                    isSmallScreen: isSmallScreen,
+                                  ),
+                                  SizedBox(height: isSmallScreen ? 12 : 16),
+                                  _buildMenuButton(
                                     title: 'STATISTIKA',
                                     subtitle: 'Natijalaringizni ko\'ring',
                                     icon: Icons.bar_chart,
@@ -525,6 +530,17 @@ class _HomeScreenState extends State<HomeScreen>
                                     color: AppColors.textSecondary,
                                     isSmallScreen: isSmallScreen,
                                   ),
+                                  if (_isAdmin) ...[
+                                    SizedBox(height: isSmallScreen ? 12 : 16),
+                                    _buildMenuButton(
+                                      title: 'ADMIN PANEL',
+                                      subtitle: 'Foydalanuvchilar va sozlamalar',
+                                      icon: Icons.admin_panel_settings,
+                                      onTap: () => _navigateToAdmin(),
+                                      color: Colors.red.shade600,
+                                      isSmallScreen: isSmallScreen,
+                                    ),
+                                  ],
                                 ],
                               ),
 
@@ -685,6 +701,26 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  void _navigateToTasks() {
+    _showInterstitialAndNavigate(() {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => TasksScreen(onUpdate: _loadData),
+        ),
+      ).then((_) => _loadData());
+    });
+  }
+
+  void _navigateToLeaderboard() {
+    _showInterstitialAndNavigate(() {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const LeaderboardScreen()),
+      );
+    });
+  }
+
   void _navigateToStats() {
     _showInterstitialAndNavigate(() {
       Navigator.push(
@@ -694,9 +730,15 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
+  void _navigateToAdmin() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+    );
+  }
+
   void _showInterstitialAndNavigate(VoidCallback navigation) {
     if (!AdMobService.isInterstitialAdReady) {
-      print('Reklama tayyor emas, darhol o\'tish');
       navigation();
       return;
     }
@@ -758,6 +800,50 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
+  Future<void> _signOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.logout, color: AppColors.danger),
+            SizedBox(width: 8),
+            Text('Chiqish', style: TextStyle(color: AppColors.textPrimary)),
+          ],
+        ),
+        content: const Text(
+          'Hisobdan chiqishni xohlaysizmi?',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Bekor qilish',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Chiqish',
+                style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await AuthService.signOut();
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    }
+  }
+
   void _showSettings() {
     showDialog(
       context: context,
@@ -775,39 +861,136 @@ class _HomeScreenState extends State<HomeScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Sozlamalar bo\'limi tez orada qo\'shiladi!',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Kelgusi versiyalarda:',
-                    style: TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.bold,
+            if (_user != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.accent.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundImage: _user!.photoURL != null
+                          ? NetworkImage(_user!.photoURL!)
+                          : null,
+                      backgroundColor: AppColors.primary,
+                      child: _user!.photoURL == null
+                          ? const Icon(Icons.person, color: Colors.white)
+                          : null,
                     ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    '• Tovush sozlamalari\n• Qiyinchilik moslashlari\n• Tema tanlamlari\n• Statistika eksporti\n• Coin tarixi\n• UC almashtirish tarixi',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _user!.displayName ?? 'Foydalanuvchi',
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            _user!.email ?? '',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(height: 16),
+            ],
+            // Referral code
+            FutureBuilder<AppUser?>(
+              future: _user != null
+                  ? _firestoreService.getUser(_user!.uid)
+                  : Future.value(null),
+              builder: (context, snapshot) {
+                if (!snapshot.hasData || snapshot.data == null) {
+                  return const SizedBox.shrink();
+                }
+                final appUser = snapshot.data!;
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Taklif kodingiz:',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              appUser.referralCode,
+                              style: const TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.copy, color: Colors.green, size: 20),
+                            onPressed: () {
+                              Clipboard.setData(
+                                ClipboardData(text: appUser.referralCode),
+                              );
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Kod nusxalandi!'),
+                                  duration: Duration(seconds: 1),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                      if (appUser.loginStreak > 0) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Kunlik kirish: ${appUser.loginStreak} kun ketma-ket',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              },
             ),
           ],
         ),
         actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _signOut();
+            },
+            child: const Text('Chiqish',
+                style: TextStyle(color: AppColors.danger)),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('OK', style: TextStyle(color: AppColors.primary)),

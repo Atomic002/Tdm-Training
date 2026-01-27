@@ -1,48 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import '../services/coin_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/firestore_service.dart';
 import '../services/admob_service.dart';
+import '../models/exchange_model.dart';
 import '../utils/app_colors.dart';
 import '../widgets/ad_banner.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'dart:async';
-
-// UCExchange model
-class UCExchange {
-  final int coins;
-  final int ucAmount;
-  final DateTime date;
-  final String status;
-  final String nickname;
-  final String pubgId;
-
-  UCExchange({
-    required this.coins,
-    required this.ucAmount,
-    required this.date,
-    this.status = 'completed',
-    this.nickname = '',
-    this.pubgId = '',
-  });
-
-  factory UCExchange.fromJson(Map<String, dynamic> json) {
-    return UCExchange(
-      coins: json['coins'] is int
-          ? json['coins']
-          : (int.tryParse(json['coins']?.toString() ?? '0') ?? 0),
-      ucAmount: json['ucAmount'] is int
-          ? json['ucAmount']
-          : (int.tryParse(json['ucAmount']?.toString() ?? '0') ?? 0),
-      date: DateTime.tryParse(json['date']?.toString() ?? '') ?? DateTime.now(),
-      status: json['status']?.toString() ?? 'completed',
-      nickname: json['nickname']?.toString() ?? '',
-      pubgId: json['pubgId']?.toString() ?? '',
-    );
-  }
-
-  String get formattedDate =>
-      '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-}
 
 class CoinScreen extends StatefulWidget {
   final VoidCallback onUpdate; // Callback to refresh HomeScreen
@@ -54,11 +18,13 @@ class CoinScreen extends StatefulWidget {
 }
 
 class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
-  final CoinService _coinService = CoinService();
+  final FirestoreService _firestoreService = FirestoreService();
+  String? get _uid => FirebaseAuth.instance.currentUser?.uid;
+
   int _currentCoins = 0;
   int _totalUC = 0;
   Map<String, dynamic> _dailyStatus = {};
-  List<Map<String, dynamic>> _history = []; // Cache history
+  List<ExchangeModel> _history = [];
   bool _isLoading = true;
   bool _isWatchingAd = false;
 
@@ -173,40 +139,27 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _loadData() async {
-    if (!mounted) return;
+    if (!mounted || _uid == null) return;
     setState(() => _isLoading = true);
 
     try {
-      final coins = await _coinService.getCoins();
-      final status = await _coinService.getDailyStatus() ?? {};
-      final history = await _coinService.getExchangeHistory();
-      print('CoinScreen History: $history'); // Debug log
+      final coins = await _firestoreService.getCoins();
+      final status = await _firestoreService.getDailyStatus(_uid!);
+      final history = await _firestoreService.getExchangeHistory(_uid!);
 
-      final totalUC = (history ?? []).fold<int>(0, (sum, exchange) {
-        try {
-          if (exchange is Map<String, dynamic>) {
-            final ucExchange = UCExchange.fromJson(exchange);
-            return sum + ucExchange.ucAmount;
-          }
-          print('Invalid exchange item in CoinScreen: $exchange');
-          return sum;
-        } catch (e) {
-          print(
-            'Error processing exchange item in CoinScreen: $e, Item: $exchange',
-          );
-          return sum;
-        }
+      final totalUC = history.fold<int>(0, (sum, exchange) {
+        return sum + exchange.ucAmount;
       });
 
       if (mounted) {
         setState(() {
-          _currentCoins = coins ?? 0;
+          _currentCoins = coins;
           _totalUC = totalUC;
           _dailyStatus = status;
-          _history = history ?? [];
+          _history = history;
           _isLoading = false;
         });
-        widget.onUpdate(); // Notify HomeScreen to refresh
+        widget.onUpdate();
       }
     } catch (e, stackTrace) {
       print('Error loading data in CoinScreen: $e');
@@ -226,6 +179,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
 
   Future<void> _watchAdForCoins() async {
     if (!mounted ||
+        _uid == null ||
         _isWatchingAd ||
         !(_dailyStatus['canWatchAd'] ?? false) ||
         !_canWatchAd) {
@@ -246,15 +200,12 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
       final success = await AdMobService.showRewardedAd(
         onUserEarnedReward: (RewardItem reward) {},
         onRewardEarned: () async {
-          if (mounted) {
-            final added = await _coinService.addCoinsForAd();
+          if (mounted && _uid != null) {
+            final added = await _firestoreService.addCoinsForAd(_uid!);
             if (added) {
-              setState(() {
-                _currentCoins += 5;
-              });
               _animateCoinGain();
               _animateReward();
-              _showSuccessSnackBar('5 coin qo\'shildi!');
+              _showSuccessSnackBar('${FirestoreService.coinsPerAd} coin qo\'shildi!');
               _startAdCooldown();
               await _loadData();
             } else {
@@ -337,12 +288,13 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
   }
 
   void _showUCExchangeDialog() {
-    if (!mounted) return;
+    if (!mounted || _uid == null) return;
     showDialog(
       context: context,
       builder: (context) => UCExchangeDialog(
         currentCoins: _currentCoins,
-        coinService: _coinService,
+        firestoreService: _firestoreService,
+        uid: _uid!,
         onExchangeSuccess: _loadData,
       ),
     );
@@ -376,7 +328,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        widget.onUpdate(); // Refresh HomeScreen before popping
+        widget.onUpdate();
         return true;
       },
       child: Scaffold(
@@ -387,7 +339,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
-              widget.onUpdate(); // Refresh HomeScreen on back press
+              widget.onUpdate();
               Navigator.pop(context);
             },
           ),
@@ -652,7 +604,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
           const SizedBox(height: 16),
           _buildEarnButton(
             title: 'Reklama Ko\'rish',
-            subtitle: 'Har bir reklama uchun 5 coin',
+            subtitle: 'Har bir reklama uchun ${FirestoreService.coinsPerAd} coin',
             icon: Icons.play_circle_fill,
             onPressed:
                 (_dailyStatus['canWatchAd'] ?? false) &&
@@ -789,7 +741,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
             ],
           ),
           const SizedBox(height: 16),
-          ...CoinService.ucExchangeRates.entries.map((entry) {
+          ...FirestoreService.ucExchangeRates.entries.map((entry) {
             final coins = entry.key;
             final uc = entry.value;
             final canAfford = _currentCoins >= coins;
@@ -859,7 +811,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
                 ],
               ),
             );
-          }).toList(),
+          }),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -907,10 +859,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
       );
     }
 
-    final history = _history
-        .take(5)
-        .map((e) => UCExchange.fromJson(e))
-        .toList();
+    final history = _history.take(5).toList();
 
     return Container(
       width: double.infinity,
@@ -933,80 +882,95 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 16),
           ...history.map(
-            (exchange) => Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.primary.withOpacity(0.2)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.swap_horiz, color: AppColors.primary, size: 20),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${exchange.coins} Coin → ${exchange.ucAmount} UC',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
+            (exchange) {
+              final formattedDate =
+                  '${exchange.createdAt.day}/${exchange.createdAt.month}/${exchange.createdAt.year} ${exchange.createdAt.hour}:${exchange.createdAt.minute.toString().padLeft(2, '0')}';
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.swap_horiz, color: AppColors.primary, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${exchange.coins} Coin → ${exchange.ucAmount} UC',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
                           ),
-                        ),
-                        Text(
-                          'Nickname: ${exchange.nickname}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
+                          Text(
+                            'Nickname: ${exchange.nickname}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
-                        ),
-                        Text(
-                          'ID: ${exchange.pubgId}',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
+                          Text(
+                            'ID: ${exchange.pubgId}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
-                        ),
-                        Text(
-                          exchange.formattedDate,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
+                          Text(
+                            formattedDate,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: exchange.status == 'pending'
-                          ? AppColors.info.withOpacity(0.2)
-                          : AppColors.success.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      exchange.status == 'pending'
-                          ? 'Kutilmoqda'
-                          : 'Tugallandi',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: exchange.status == 'pending'
-                            ? AppColors.info
-                            : AppColors.success,
-                        fontWeight: FontWeight.bold,
+                        ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: exchange.status == 'pending'
+                            ? AppColors.info.withOpacity(0.2)
+                            : exchange.status == 'approved'
+                                ? AppColors.success.withOpacity(0.2)
+                                : AppColors.danger.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        exchange.status == 'pending'
+                            ? 'Kutilmoqda'
+                            : exchange.status == 'approved'
+                                ? 'Tasdiqlangan'
+                                : exchange.status == 'rejected'
+                                    ? 'Rad etilgan'
+                                    : 'Tugallandi',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: exchange.status == 'pending'
+                              ? AppColors.info
+                              : exchange.status == 'approved'
+                                  ? AppColors.success
+                                  : exchange.status == 'rejected'
+                                      ? AppColors.danger
+                                      : AppColors.success,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -1016,13 +980,15 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
 
 class UCExchangeDialog extends StatefulWidget {
   final int currentCoins;
-  final CoinService coinService;
+  final FirestoreService firestoreService;
+  final String uid;
   final VoidCallback onExchangeSuccess;
 
   const UCExchangeDialog({
     super.key,
     required this.currentCoins,
-    required this.coinService,
+    required this.firestoreService,
+    required this.uid,
     required this.onExchangeSuccess,
   });
 
@@ -1075,7 +1041,8 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
     }
 
     try {
-      final success = await widget.coinService.exchangeForUC(
+      final success = await widget.firestoreService.exchangeForUC(
+        widget.uid,
         _selectedCoins!,
         _selectedUC!,
         _nicknameController.text.trim(),
@@ -1160,7 +1127,7 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
             ),
             const SizedBox(height: 16),
             Text(
-              'UC lar 24-48 soat ichida hisobingizga o\'tkaziladi.',
+              'So\'rov admin tomonidan ko\'rib chiqiladi. UC lar tasdiqlangandan so\'ng hisobingizga o\'tkaziladi.',
               style: TextStyle(
                 fontSize: 14,
                 color: AppColors.textSecondary,
@@ -1235,7 +1202,7 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
               ),
             ),
             const SizedBox(height: 12),
-            ...CoinService.ucExchangeRates.entries.map((entry) {
+            ...FirestoreService.ucExchangeRates.entries.map((entry) {
               final coins = entry.key;
               final uc = entry.value;
               final canAfford = widget.currentCoins >= coins;

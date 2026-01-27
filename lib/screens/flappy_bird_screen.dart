@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_application_1/services/coin_service.dart';
+import 'package:flutter_application_1/services/firestore_service.dart';
 import 'package:flutter_application_1/services/admob_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import 'dart:math';
 import '../utils/app_colors.dart';
@@ -15,7 +16,8 @@ class FlappyBirdScreen extends StatefulWidget {
 
 class _FlappyBirdScreenState extends State<FlappyBirdScreen>
     with TickerProviderStateMixin {
-  final CoinService _coinService = CoinService();
+  final FirestoreService _firestoreService = FirestoreService();
+  String? get _uid => FirebaseAuth.instance.currentUser?.uid;
 
   // O'yin holati
   bool _gameStarted = false;
@@ -30,7 +32,7 @@ class _FlappyBirdScreenState extends State<FlappyBirdScreen>
   final double _jumpStrength = -12;
 
   // Quvur parametrlari
-  List<Map<String, double>> _pipes = [];
+  final List<Map<String, double>> _pipes = [];
   final double _pipeWidth = 80;
   final double _pipeGap = 200;
   double _pipeSpeed = 2;
@@ -100,7 +102,7 @@ class _FlappyBirdScreenState extends State<FlappyBirdScreen>
   }
 
   Future<void> _checkGamePermission() async {
-    final canPlay = await _coinService.canPlayGame();
+    final canPlay = _uid != null ? await _firestoreService.canPlayGame(_uid!) : false;
     setState(() {
       _canPlayGame = canPlay;
     });
@@ -280,7 +282,7 @@ class _FlappyBirdScreenState extends State<FlappyBirdScreen>
     }
 
     // Coin berish
-    _coinService.addCoins(1);
+    if (_uid != null) _firestoreService.addCoins(_uid!, 1);
     _coinAnimationController.forward();
 
     // Reklama ko'rsatish
@@ -433,7 +435,7 @@ class _FlappyBirdScreenState extends State<FlappyBirdScreen>
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              final canPlay = await _coinService.canPlayGame();
+              final canPlay = _uid != null ? await _firestoreService.canPlayGame(_uid!) : false;
               if (canPlay) {
                 _coinAnimationController.reset();
                 _startGame();
@@ -501,7 +503,7 @@ class _FlappyBirdScreenState extends State<FlappyBirdScreen>
                 ),
                 const SizedBox(width: 4),
                 FutureBuilder<int>(
-                  future: _coinService.getCurrentCoins(),
+                  future: _firestoreService.getCoins(),
                   builder: (context, snapshot) {
                     return Text(
                       '${snapshot.data ?? 0}',
