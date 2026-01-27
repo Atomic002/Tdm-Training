@@ -278,6 +278,39 @@ Bu normal! Ilova ishlaydi, lekin Firestore Index yaratish tavsiya etiladi:
 - Security Rules'da `/users/{userId}/exchanges` **subcollection** path bo'lishi kerak
 - Root `/exchanges` emas!
 
+### UC so'rovlar admin panel'da ko'rinmayapti
+**Muammo:** UC almashish so'rovlari yuboriladi, lekin Admin Panel → UC so'rovlar bo'sh.
+
+**Console debug output ko'ring:**
+```
+DEBUG [Exchange]: ========== UC ALMASHTIRISH BOSHLANDI ==========
+DEBUG [Exchange]: User UID: ...
+DEBUG [Exchange]: Coins: 100, UC: 10
+DEBUG [Exchange]: ✓ 100 coin sarflandi
+DEBUG [Exchange]: ✓ Exchange yaratildi, ID: xyz123
+```
+
+**Agar so'rov yaratilgan bo'lsa, admin panel'da ko'ring:**
+```
+DEBUG [Admin-Exchange]: ========== PENDING UC SO'ROVLAR YUKLASH BOSHLANDI ==========
+DEBUG [Admin-Exchange]: Jami 5 ta user topildi
+DEBUG [Admin-Exchange]: 5 ta userdan jami 2 ta pending exchange topildi
+```
+
+**Agar "0 ta pending exchange" ko'rsatsa:**
+1. Firestore Console → users → [UserID] → exchanges subcollection'ni tekshiring
+2. Exchange document'da `status: "pending"` ekanligini tekshiring
+3. **Composite Index** (exchanges: status + createdAt) yaratilganini tekshiring
+
+**Agar index xatosi chiqsa:**
+```
+DEBUG [Admin-Exchange]: ⚠️ User ... uchun query xatosi (index yo'q bo'lishi mumkin)
+DEBUG [Admin-Exchange]: Fallback: User ... : 1 ta pending exchange (in-memory filter)
+```
+Bu holda ilova ishlaydi (fallback mode), lekin indexni yaratish tavsiya etiladi:
+- `firebase deploy --only firestore:indexes`
+- Yoki Firebase Console → Indexes → Manual index creation
+
 ### Google Sign-In ishlamayapti
 1. SHA-1 fingerprint qo'shganingizni tekshiring
 2. `google-services.json` fayli to'g'ri joyda ekanligini tekshiring

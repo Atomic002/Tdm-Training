@@ -257,8 +257,17 @@ class FirestoreService {
     String pubgId,
   ) async {
     try {
+      print('DEBUG [Exchange]: ========== UC ALMASHTIRISH BOSHLANDI ==========');
+      print('DEBUG [Exchange]: User UID: $uid');
+      print('DEBUG [Exchange]: Coins: $coins, UC: $ucAmount');
+      print('DEBUG [Exchange]: Nickname: $nickname, PUBG ID: $pubgId');
+
       final spent = await spendCoins(uid, coins);
-      if (!spent) return false;
+      if (!spent) {
+        print('DEBUG [Exchange]: ❌ Coinlar sarflanmadi (yetarli emas yoki xato)');
+        return false;
+      }
+      print('DEBUG [Exchange]: ✓ $coins coin sarflandi');
 
       final exchange = ExchangeModel(
         id: '',
@@ -271,19 +280,25 @@ class FirestoreService {
         createdAt: DateTime.now(),
       );
 
-      await _db
+      print('DEBUG [Exchange]: Firestore\'ga yozilmoqda: users/$uid/exchanges');
+      final docRef = await _db
           .collection('users')
           .doc(uid)
           .collection('exchanges')
           .add(exchange.toFirestore());
+      print('DEBUG [Exchange]: ✓ Exchange yaratildi, ID: ${docRef.id}');
 
       await _db.collection('users').doc(uid).update({
         'totalUCExchanged': FieldValue.increment(ucAmount),
       });
+      print('DEBUG [Exchange]: ✓ totalUCExchanged yangilandi');
+      print('DEBUG [Exchange]: ========== UC ALMASHTIRISH TUGADI (SUCCESS) ==========\n');
 
       return true;
-    } catch (e) {
-      print('Error exchanging for UC: $e');
+    } catch (e, stackTrace) {
+      print('DEBUG [Exchange]: ❌ UC ALMASHTIRISH XATOSI!');
+      print('DEBUG [Exchange]: Xato: $e');
+      print('DEBUG [Exchange]: Stack trace: $stackTrace');
       return false;
     }
   }
@@ -709,32 +724,88 @@ class FirestoreService {
 
   Future<List<Map<String, dynamic>>> getAllPendingExchanges() async {
     try {
+      print('DEBUG [Admin-Exchange]: ========== PENDING UC SO\'ROVLAR YUKLASH BOSHLANDI ==========');
+
       final usersSnapshot = await _db.collection('users').get();
+      print('DEBUG [Admin-Exchange]: Jami ${usersSnapshot.docs.length} ta user topildi');
+
       final List<Map<String, dynamic>> allExchanges = [];
+      int totalChecked = 0;
+      int totalPending = 0;
 
       for (final userDoc in usersSnapshot.docs) {
-        final exchangesSnapshot = await userDoc.reference
-            .collection('exchanges')
-            .where('status', isEqualTo: 'pending')
-            .orderBy('createdAt', descending: true)
-            .get();
+        final userData = userDoc.data();
+        final userName = userData['displayName'] ?? 'Unknown';
 
-        for (final exchangeDoc in exchangesSnapshot.docs) {
-          allExchanges.add({
-            'exchange': ExchangeModel.fromFirestore(exchangeDoc),
-            'userName': userDoc.data()['displayName'] ?? '',
-            'userEmail': userDoc.data()['email'] ?? '',
-          });
+        try {
+          final exchangesSnapshot = await userDoc.reference
+              .collection('exchanges')
+              .where('status', isEqualTo: 'pending')
+              .orderBy('createdAt', descending: true)
+              .get();
+
+          totalChecked++;
+          if (exchangesSnapshot.docs.isNotEmpty) {
+            print('DEBUG [Admin-Exchange]: User $userName: ${exchangesSnapshot.docs.length} ta pending exchange');
+            totalPending += exchangesSnapshot.docs.length;
+          }
+
+          for (final exchangeDoc in exchangesSnapshot.docs) {
+            final exchangeData = exchangeDoc.data();
+            print('DEBUG [Admin-Exchange]:   - ${exchangeData['coins']} coin -> ${exchangeData['ucAmount']} UC (${exchangeData['nickname']})');
+
+            allExchanges.add({
+              'exchange': ExchangeModel.fromFirestore(exchangeDoc),
+              'userName': userData['displayName'] ?? '',
+              'userEmail': userData['email'] ?? '',
+            });
+          }
+        } catch (indexError) {
+          print('DEBUG [Admin-Exchange]: ⚠️ User $userName uchun query xatosi (index yo\'q bo\'lishi mumkin)');
+          print('DEBUG [Admin-Exchange]: Xato: $indexError');
+
+          // Fallback - index yo'q bo'lsa, barcha exchanges'ni olamiz va filter qilamiz
+          try {
+            final allExchangesSnapshot = await userDoc.reference
+                .collection('exchanges')
+                .get();
+
+            final pendingDocs = allExchangesSnapshot.docs
+                .where((doc) => doc.data()['status'] == 'pending')
+                .toList();
+
+            if (pendingDocs.isNotEmpty) {
+              print('DEBUG [Admin-Exchange]: Fallback: User $userName: ${pendingDocs.length} ta pending exchange (in-memory filter)');
+              totalPending += pendingDocs.length;
+            }
+
+            for (final exchangeDoc in pendingDocs) {
+              allExchanges.add({
+                'exchange': ExchangeModel.fromFirestore(exchangeDoc),
+                'userName': userData['displayName'] ?? '',
+                'userEmail': userData['email'] ?? '',
+              });
+            }
+          } catch (fallbackError) {
+            print('DEBUG [Admin-Exchange]: ❌ Fallback ham muvaffaqiyatsiz: $fallbackError');
+          }
         }
       }
+
+      print('DEBUG [Admin-Exchange]: $totalChecked ta userdan jami $totalPending ta pending exchange topildi');
 
       allExchanges.sort((a, b) => (b['exchange'] as ExchangeModel)
           .createdAt
           .compareTo((a['exchange'] as ExchangeModel).createdAt));
 
+      print('DEBUG [Admin-Exchange]: ${allExchanges.length} ta so\'rov qaytarilmoqda');
+      print('DEBUG [Admin-Exchange]: ========== YUKLASH TUGADI ==========\n');
+
       return allExchanges;
-    } catch (e) {
-      print('Error getting pending exchanges: $e');
+    } catch (e, stackTrace) {
+      print('DEBUG [Admin-Exchange]: ❌ JIDDIY XATOLIK!');
+      print('DEBUG [Admin-Exchange]: Xato: $e');
+      print('DEBUG [Admin-Exchange]: Stack trace: $stackTrace');
       return [];
     }
   }
