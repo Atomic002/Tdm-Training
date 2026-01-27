@@ -53,12 +53,23 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Future<void> _loadData() async {
-    if (_uid == null) return;
+    if (_uid == null) {
+      print('DEBUG: UID null, foydalanuvchi login qilmagan');
+      return;
+    }
     setState(() => _isLoading = true);
 
     try {
+      print('DEBUG: Vazifalarni yuklash boshlandi...');
       final tasks = await _firestoreService.getActiveTasks();
+      print('DEBUG: ${tasks.length} ta vazifa topildi');
+      for (var task in tasks) {
+        print('DEBUG: Vazifa - ${task.title}, Type: ${task.type}, Active: ${task.isActive}');
+      }
+
       final completed = await _firestoreService.getCompletedTaskIdsToday(_uid!);
+      print('DEBUG: ${completed.length} ta vazifa bugun bajarilgan');
+
       final appUser = await _firestoreService.getUser(_uid!);
 
       if (mounted) {
