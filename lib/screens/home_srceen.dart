@@ -12,6 +12,7 @@ import 'package:flutter_application_1/screens/stats_screen.dart';
 import 'package:flutter_application_1/screens/coin_screen.dart';
 import 'package:flutter_application_1/screens/tasks_screen.dart';
 import 'package:flutter_application_1/screens/leaderboard_screen.dart';
+import 'package:flutter_application_1/screens/mini_pubg_game_screen.dart';
 import 'package:flutter_application_1/screens/admin/admin_dashboard_screen.dart';
 import '../utils/app_colors.dart';
 
@@ -505,6 +506,15 @@ class _HomeScreenState extends State<HomeScreen>
                                   ),
                                   SizedBox(height: isSmallScreen ? 12 : 16),
                                   _buildMenuButton(
+                                    title: 'MINI PUBG',
+                                    subtitle: 'Dushmanlarni yo\'q qiling va coin oling',
+                                    icon: Icons.military_tech,
+                                    onTap: () => _navigateToMiniPubg(),
+                                    color: Colors.red.shade700,
+                                    isSmallScreen: isSmallScreen,
+                                  ),
+                                  SizedBox(height: isSmallScreen ? 12 : 16),
+                                  _buildMenuButton(
                                     title: 'REYTING',
                                     subtitle: 'Top o\'yinchilar reytingi',
                                     icon: Icons.leaderboard,
@@ -718,6 +728,17 @@ class _HomeScreenState extends State<HomeScreen>
         context,
         MaterialPageRoute(builder: (context) => const LeaderboardScreen()),
       );
+    });
+  }
+
+  void _navigateToMiniPubg() {
+    _showInterstitialAndNavigate(() {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MiniPubgGameScreen(onUpdate: _loadData),
+        ),
+      ).then((_) => _loadData());
     });
   }
 

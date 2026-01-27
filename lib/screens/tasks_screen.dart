@@ -166,13 +166,29 @@ class _TasksScreenState extends State<TasksScreen> {
   }
 
   Future<void> _handleTelegramTask(TaskModel task) async {
-    // Avval kanalni ochish
-    final channelLink = await _telegramService.getChannelLink();
-    if (channelLink != null) {
+    // Task'dagi link'ni ishlatish (to'g'ridan-to'g'ri Telegram'ga o'tish)
+    String? channelLink = task.link;
+
+    // Agar task'da link yo'q bo'lsa, settings'dan olish
+    if (channelLink == null || channelLink.isEmpty) {
+      channelLink = await _telegramService.getChannelLink();
+    }
+
+    if (channelLink != null && channelLink.isNotEmpty) {
+      print('DEBUG [Telegram]: Kanal ochilmoqda: $channelLink');
       final uri = Uri.parse(channelLink);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      try {
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          print('DEBUG [Telegram]: ✓ Telegram ochildi');
+        } else {
+          print('DEBUG [Telegram]: ❌ URL ochib bo\'lmadi: $channelLink');
+        }
+      } catch (e) {
+        print('DEBUG [Telegram]: ❌ Xato: $e');
       }
+    } else {
+      print('DEBUG [Telegram]: ⚠️ Kanal linki topilmadi');
     }
 
     if (!mounted) return;
