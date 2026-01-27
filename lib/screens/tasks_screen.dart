@@ -113,12 +113,25 @@ class _TasksScreenState extends State<TasksScreen> {
       case TaskType.instagramFollow:
         await _handleInstagramTask(task);
         break;
+      case TaskType.youtubeSubscribe:
+      case TaskType.youtubeWatch:
+      case TaskType.tikTokFollow:
+      case TaskType.facebookLike:
+      case TaskType.appDownload:
+        await _handleGenericLinkTask(task);
+        break;
       case TaskType.dailyLogin:
         // Auto-completed on login
         _showSnackBar('Kunlik bonus login da avtomatik beriladi');
         break;
       case TaskType.inviteFriend:
         await _handleReferralTask(task);
+        break;
+      case TaskType.shareApp:
+        await _handleShareAppTask(task);
+        break;
+      case TaskType.rateApp:
+        await _handleRateAppTask(task);
         break;
       case TaskType.watchAd:
         await _handleWatchAdTask(task);
@@ -280,6 +293,144 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
+  Future<void> _handleGenericLinkTask(TaskModel task) async {
+    // Link ochish
+    if (task.link != null && task.link!.isNotEmpty) {
+      final uri = Uri.parse(task.link!);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    }
+
+    if (!mounted) return;
+
+    // Tasdiqlash dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(task.title,
+            style: const TextStyle(color: AppColors.textPrimary)),
+        content: Text(
+          'Vazifani bajardingizmi?',
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Yo\'q',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ha, bajardim',
+                style: TextStyle(color: AppColors.primary)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final success =
+          await _firestoreService.completeTask(_uid!, task.id, task.reward);
+      if (success) {
+        setState(() => _completedTaskIds.add(task.id));
+        widget.onUpdate();
+        _showSnackBar('+${task.reward} coin oldiniz!');
+      } else {
+        _showSnackBar('Bu vazifa bugun allaqachon bajarilgan');
+      }
+    }
+  }
+
+  Future<void> _handleShareAppTask(TaskModel task) async {
+    await Share.share(
+      'TDM Training - UC topishning eng oson yo\'li! Bu ilovani yuklab oling va coin to\'plang!',
+    );
+
+    if (!mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Ulashish',
+            style: TextStyle(color: AppColors.textPrimary)),
+        content: const Text(
+          'Ilovani ulashdingizmi?',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Yo\'q',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ha, ulasdim',
+                style: TextStyle(color: AppColors.primary)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final success =
+          await _firestoreService.completeTask(_uid!, task.id, task.reward);
+      if (success) {
+        setState(() => _completedTaskIds.add(task.id));
+        widget.onUpdate();
+        _showSnackBar('+${task.reward} coin oldiniz!');
+      }
+    }
+  }
+
+  Future<void> _handleRateAppTask(TaskModel task) async {
+    // Google Play Store link
+    final uri = Uri.parse('https://play.google.com/store/apps/details?id=com.rahmatullo.tdm_training');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+
+    if (!mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Baho berish',
+            style: TextStyle(color: AppColors.textPrimary)),
+        content: const Text(
+          'Ilovaga 5 yulduz baho berdingizmi?',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Yo\'q',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ha, baho berdim',
+                style: TextStyle(color: AppColors.primary)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final success =
+          await _firestoreService.completeTask(_uid!, task.id, task.reward);
+      if (success) {
+        setState(() => _completedTaskIds.add(task.id));
+        widget.onUpdate();
+        _showSnackBar('+${task.reward} coin oldiniz!');
+      }
+    }
+  }
+
   Future<void> _handleReferralTask(TaskModel task) async {
     if (_appUser == null) return;
 
@@ -326,6 +477,14 @@ class _TasksScreenState extends State<TasksScreen> {
         return Icons.send;
       case TaskType.instagramFollow:
         return Icons.camera_alt;
+      case TaskType.youtubeSubscribe:
+        return Icons.play_circle_outline;
+      case TaskType.youtubeWatch:
+        return Icons.video_library;
+      case TaskType.tikTokFollow:
+        return Icons.music_note;
+      case TaskType.facebookLike:
+        return Icons.thumb_up;
       case TaskType.dailyLogin:
         return Icons.login;
       case TaskType.inviteFriend:
@@ -334,6 +493,12 @@ class _TasksScreenState extends State<TasksScreen> {
         return Icons.play_circle_filled;
       case TaskType.playGame:
         return Icons.sports_esports;
+      case TaskType.appDownload:
+        return Icons.download;
+      case TaskType.shareApp:
+        return Icons.share;
+      case TaskType.rateApp:
+        return Icons.star;
     }
   }
 
@@ -343,6 +508,14 @@ class _TasksScreenState extends State<TasksScreen> {
         return Colors.blue;
       case TaskType.instagramFollow:
         return Colors.pink;
+      case TaskType.youtubeSubscribe:
+        return Colors.red;
+      case TaskType.youtubeWatch:
+        return Colors.red.shade700;
+      case TaskType.tikTokFollow:
+        return Colors.black;
+      case TaskType.facebookLike:
+        return Colors.blue.shade800;
       case TaskType.dailyLogin:
         return Colors.green;
       case TaskType.inviteFriend:
@@ -351,6 +524,12 @@ class _TasksScreenState extends State<TasksScreen> {
         return Colors.amber;
       case TaskType.playGame:
         return AppColors.primary;
+      case TaskType.appDownload:
+        return Colors.teal;
+      case TaskType.shareApp:
+        return Colors.purple;
+      case TaskType.rateApp:
+        return Colors.amber.shade700;
     }
   }
 

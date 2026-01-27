@@ -3,10 +3,17 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 enum TaskType {
   telegramSubscribe,
   instagramFollow,
+  youtubeSubscribe,
+  youtubeWatch,
+  tikTokFollow,
+  facebookLike,
   dailyLogin,
   inviteFriend,
   watchAd,
   playGame,
+  appDownload,
+  shareApp,
+  rateApp,
 }
 
 class TaskModel {
@@ -84,6 +91,14 @@ class TaskModel {
         return TaskType.telegramSubscribe;
       case 'instagramFollow':
         return TaskType.instagramFollow;
+      case 'youtubeSubscribe':
+        return TaskType.youtubeSubscribe;
+      case 'youtubeWatch':
+        return TaskType.youtubeWatch;
+      case 'tikTokFollow':
+        return TaskType.tikTokFollow;
+      case 'facebookLike':
+        return TaskType.facebookLike;
       case 'dailyLogin':
         return TaskType.dailyLogin;
       case 'inviteFriend':
@@ -92,6 +107,12 @@ class TaskModel {
         return TaskType.watchAd;
       case 'playGame':
         return TaskType.playGame;
+      case 'appDownload':
+        return TaskType.appDownload;
+      case 'shareApp':
+        return TaskType.shareApp;
+      case 'rateApp':
+        return TaskType.rateApp;
       default:
         return TaskType.watchAd;
     }

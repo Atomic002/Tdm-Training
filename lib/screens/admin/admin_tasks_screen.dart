@@ -526,6 +526,14 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
         return 'Telegram obuna';
       case TaskType.instagramFollow:
         return 'Instagram obuna';
+      case TaskType.youtubeSubscribe:
+        return 'YouTube obuna';
+      case TaskType.youtubeWatch:
+        return 'YouTube video ko\'rish';
+      case TaskType.tikTokFollow:
+        return 'TikTok follow';
+      case TaskType.facebookLike:
+        return 'Facebook like';
       case TaskType.dailyLogin:
         return 'Kunlik kirish';
       case TaskType.inviteFriend:
@@ -534,6 +542,12 @@ class _AdminTasksScreenState extends State<AdminTasksScreen> {
         return 'Reklama ko\'rish';
       case TaskType.playGame:
         return 'O\'yin o\'ynash';
+      case TaskType.appDownload:
+        return 'Ilova yuklab olish';
+      case TaskType.shareApp:
+        return 'Ilovani ulashish';
+      case TaskType.rateApp:
+        return 'Ilovaga baho berish';
     }
   }
 
