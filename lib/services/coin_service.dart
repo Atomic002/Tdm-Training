@@ -7,14 +7,14 @@ class CoinService {
   static const int maxDailyGames = 20;
   static const int maxCoinsPerGame = 10;
 
-  // UC exchange rates
+  // UC exchange rates (coin: UC)
   static const Map<int, int> ucExchangeRates = {
-    8000: 325, // 100 coins = 10 UC
-    10000: 660, // 250 coins = 30 UC
-    20000: 1200, // 500 coins = 60 UC
-    30000: 2500, // 1000 coins = 120 UC
-    40000: 3000, // 2000 coins = 250 UC
-    100000: 5000,
+    12000: 325,    // 325 UC
+    15000: 660,    // 660 UC
+    30000: 1200,   // 1200 UC
+    45000: 2500,   // 2500 UC
+    60000: 3000,   // 3000 UC
+    150000: 5000,  // 5000 UC
   };
 
   static const String _coinsKey = 'coins';

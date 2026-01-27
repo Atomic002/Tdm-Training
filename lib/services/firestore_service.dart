@@ -20,12 +20,12 @@ class FirestoreService {
   static const int maxCoinsPerGame = 10;
 
   static const Map<int, int> ucExchangeRates = {
-    8000: 325,
-    10000: 660,
-    20000: 1200,
-    30000: 2500,
-    40000: 3000,
-    100000: 5000,
+    12000: 325,    // 325 UC
+    15000: 660,    // 660 UC
+    30000: 1200,   // 1200 UC
+    45000: 2500,   // 2500 UC
+    60000: 3000,   // 3000 UC
+    150000: 5000,  // 5000 UC
   };
 
   String? get _currentUid => FirebaseAuth.instance.currentUser?.uid;
