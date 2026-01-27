@@ -786,14 +786,14 @@ class _HomeScreenState extends State<HomeScreen>
     Future.delayed(const Duration(seconds: 2), () async {
       try {
         await AdMobService.showInterstitialAd();
-        if (mounted) {
-          Navigator.pop(context);
+        if (mounted && Navigator.canPop(context)) {
+          Navigator.of(context, rootNavigator: true).pop();
           navigation();
         }
       } catch (e) {
         print('Reklama xatoligi: $e');
-        if (mounted) {
-          Navigator.pop(context);
+        if (mounted && Navigator.canPop(context)) {
+          Navigator.of(context, rootNavigator: true).pop();
           navigation();
         }
       }

@@ -55,22 +55,39 @@ class _TasksScreenState extends State<TasksScreen> {
   Future<void> _loadData() async {
     if (_uid == null) {
       print('DEBUG: UID null, foydalanuvchi login qilmagan');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showSnackBar('Login qilmagan! Iltimos qaytadan kiriting', isError: true);
+      }
       return;
     }
     setState(() => _isLoading = true);
 
     try {
-      print('DEBUG: Vazifalarni yuklash boshlandi...');
+      print('DEBUG: ========== VAZIFALARNI YUKLASH BOSHLANDI ==========');
+      print('DEBUG: User UID: $_uid');
+
       final tasks = await _firestoreService.getActiveTasks();
-      print('DEBUG: ${tasks.length} ta vazifa topildi');
-      for (var task in tasks) {
-        print('DEBUG: Vazifa - ${task.title}, Type: ${task.type}, Active: ${task.isActive}');
+      print('DEBUG: Firestore\'dan ${tasks.length} ta vazifa topildi');
+
+      if (tasks.isEmpty) {
+        print('DEBUG: ⚠️ Firestore\'da hech qanday faol vazifa yo\'q!');
+        print('DEBUG: Firestore Console\'da tasks collection\'ni tekshiring');
+        print('DEBUG: isActive: true va type: "telegramSubscribe" formatida bo\'lishi kerak');
+      } else {
+        for (var task in tasks) {
+          print('DEBUG: ✓ Vazifa #${task.order} - ${task.title}');
+          print('DEBUG:   Type: ${task.type}, Active: ${task.isActive}, Reward: ${task.reward}');
+          print('DEBUG:   Link: ${task.link ?? "(yo\'q)"}');
+        }
       }
 
       final completed = await _firestoreService.getCompletedTaskIdsToday(_uid!);
       print('DEBUG: ${completed.length} ta vazifa bugun bajarilgan');
 
       final appUser = await _firestoreService.getUser(_uid!);
+      print('DEBUG: User ma\'lumoti yuklandi: ${appUser?.displayName ?? "Unknown"}');
+      print('DEBUG: ========== YUKLASH TUGADI ==========\n');
 
       if (mounted) {
         setState(() {
@@ -79,11 +96,17 @@ class _TasksScreenState extends State<TasksScreen> {
           _appUser = appUser;
           _isLoading = false;
         });
+
+        if (tasks.isEmpty) {
+          _showSnackBar('Hozircha vazifalar yo\'q. Admin qo\'shganda ko\'rinadi.', isError: false);
+        }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('DEBUG: ❌ XATOLIK: $e');
+      print('DEBUG: Stack trace: $stackTrace');
       if (mounted) {
         setState(() => _isLoading = false);
-        _showSnackBar('Ma\'lumotlarni yuklashda xatolik', isError: true);
+        _showSnackBar('Xatolik: $e', isError: true);
       }
     }
   }
