@@ -25,6 +25,8 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen> {
   int _lives = 3;
   int _enemiesKilled = 0;
   int _waveNumber = 1;
+  int _gamesPlayedToday = 0;
+  bool _isLoadingGames = true;
 
   // Player
   Offset _playerPosition = const Offset(0.5, 0.8);
@@ -44,7 +46,6 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen> {
           'enemySpeed': 0.002,
           'spawnInterval': 2000,
           'enemiesPerWave': 3,
-          'coinsReward': 5,
           'name': 'Oson',
         };
       case GameLevel.medium:
@@ -52,7 +53,6 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen> {
           'enemySpeed': 0.004,
           'spawnInterval': 1500,
           'enemiesPerWave': 5,
-          'coinsReward': 10,
           'name': 'O\'rtacha',
         };
       case GameLevel.hard:
@@ -60,10 +60,18 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen> {
           'enemySpeed': 0.006,
           'spawnInterval': 1000,
           'enemiesPerWave': 7,
-          'coinsReward': 20,
           'name': 'Qiyin',
         };
     }
+  }
+
+  static const int maxDailyGames = 15;
+  static const int maxCoinsPerGame = 3;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDailyGames();
   }
 
   @override
@@ -73,7 +81,35 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen> {
     super.dispose();
   }
 
+  Future<void> _loadDailyGames() async {
+    if (_uid == null) return;
+
+    setState(() => _isLoadingGames = true);
+
+    try {
+      final status = await _firestoreService.getDailyStatus(_uid!);
+      final gamesPlayed = status['gamesPlayed'] ?? 0;
+
+      if (mounted) {
+        setState(() {
+          _gamesPlayedToday = gamesPlayed;
+          _isLoadingGames = false;
+        });
+      }
+    } catch (e) {
+      print('DEBUG [MiniPubg]: Kunlik o\'yinlarni yuklashda xato: $e');
+      if (mounted) {
+        setState(() => _isLoadingGames = false);
+      }
+    }
+  }
+
   void _startGame() {
+    // Kunlik limit tekshirish
+    if (_gamesPlayedToday >= maxDailyGames) {
+      _showLimitReachedDialog();
+      return;
+    }
     setState(() {
       _gameState = GameState.playing;
       _score = 0;
@@ -198,17 +234,80 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen> {
     if (_uid == null) return;
 
     try {
-      final coins = (_score / 10).floor(); // 10 xp = 1 coin
-      final maxCoins = _difficulty['coinsReward'] as int;
-      final finalCoins = coins > maxCoins ? maxCoins : coins;
+      // Performance ga qarab 1-3 coin hisoblash
+      final int coins = _calculateCoins();
 
-      if (finalCoins > 0) {
-        await _firestoreService.addCoinsForGame(_uid!, finalCoins.toDouble());
+      print('DEBUG [MiniPubg]: O\'yin tugadi - Score: $_score, Enemies: $_enemiesKilled, Coins: $coins');
+
+      if (coins > 0) {
+        await _firestoreService.addCoinsForGame(_uid!, coins.toDouble());
         widget.onUpdate();
       }
+
+      // Kunlik o'yinlar sonini oshirish
+      setState(() {
+        _gamesPlayedToday++;
+      });
     } catch (e) {
-      print('Coin saqlashda xato: $e');
+      print('DEBUG [MiniPubg]: Coin saqlashda xato: $e');
     }
+  }
+
+  int _calculateCoins() {
+    // Score va dushmanlar soniga qarab 1-3 coin berish
+    // 1 coin: 0-99 score yoki 0-9 dushman
+    // 2 coin: 100-199 score yoki 10-19 dushman
+    // 3 coin: 200+ score yoki 20+ dushman
+
+    int coinsFromScore = 1;
+    if (_score >= 200) {
+      coinsFromScore = 3;
+    } else if (_score >= 100) {
+      coinsFromScore = 2;
+    }
+
+    int coinsFromEnemies = 1;
+    if (_enemiesKilled >= 20) {
+      coinsFromEnemies = 3;
+    } else if (_enemiesKilled >= 10) {
+      coinsFromEnemies = 2;
+    }
+
+    // Ikkalasidan yuqorisini olish
+    final coins = coinsFromScore > coinsFromEnemies ? coinsFromScore : coinsFromEnemies;
+
+    // Maximum 3 coin
+    return coins > maxCoinsPerGame ? maxCoinsPerGame : coins;
+  }
+
+  void _showLimitReachedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning, color: Colors.orange, size: 28),
+            SizedBox(width: 12),
+            Text(
+              'Kunlik limit tugadi',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
+          ],
+        ),
+        content: Text(
+          'Siz bugun $maxDailyGames ta o\'yin o\'ynadingiz. Ertaga qayta urinib ko\'ring!',
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK', style: TextStyle(color: AppColors.primary)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -260,7 +359,56 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen> {
                 color: AppColors.textSecondary,
               ),
             ),
-            const SizedBox(height: 48),
+            const SizedBox(height: 24),
+
+            // Remaining games and coin info
+            if (_isLoadingGames)
+              const CircularProgressIndicator(color: AppColors.primary)
+            else
+              Container(
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.symmetric(horizontal: 32),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.gamepad, color: AppColors.accent, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Kunlik o\'yinlar: $_gamesPlayedToday / $maxDailyGames',
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.monetization_on, color: Colors.green, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Mukofot: 1-$maxCoinsPerGame coin (natijaga qarab)',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 32),
 
             // Level selection
             const Text(
@@ -302,23 +450,23 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen> {
             'enemySpeed': 0.002,
             'spawnInterval': 2000,
             'enemiesPerWave': 3,
-            'coinsReward': 5,
             'name': 'Oson',
+            'description': 'Sekin dushmanlar',
           }
         : level == GameLevel.medium
             ? {
                 'enemySpeed': 0.004,
                 'spawnInterval': 1500,
                 'enemiesPerWave': 5,
-                'coinsReward': 10,
                 'name': 'O\'rtacha',
+                'description': 'Tezroq dushmanlar',
               }
             : {
                 'enemySpeed': 0.006,
                 'spawnInterval': 1000,
                 'enemiesPerWave': 7,
-                'coinsReward': 20,
                 'name': 'Qiyin',
+                'description': 'Juda tez dushmanlar',
               };
 
     return Container(
@@ -357,7 +505,7 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen> {
                         ),
                       ),
                       Text(
-                        'Max: ${difficulty['coinsReward']} coin',
+                        difficulty['description'] as String,
                         style: const TextStyle(
                           fontSize: 14,
                           color: AppColors.textSecondary,
@@ -534,9 +682,7 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen> {
   }
 
   Widget _buildGameOver() {
-    final coins = (_score / 10).floor();
-    final maxCoins = _difficulty['coinsReward'] as int;
-    final finalCoins = coins > maxCoins ? maxCoins : coins;
+    final finalCoins = _calculateCoins();
 
     return Container(
       decoration: BoxDecoration(
