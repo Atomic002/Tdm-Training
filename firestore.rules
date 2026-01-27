@@ -20,14 +20,27 @@ service cloud.firestore {
       // Faqat o'z accountini yaratish
       allow create: if isSignedIn() && request.auth.uid == userId;
 
-      // Faqat o'z accountini yoki adminlar o'zgartirishi mumkin
-      allow update: if isSignedIn() && (
-        request.auth.uid == userId ||
-        resource.data.isAdmin == true
-      );
+      // O'z accountini yangilash
+      allow update: if isSignedIn() && request.auth.uid == userId;
+
+      // Adminlar har qanday userni yangilashi mumkin
+      allow update: if isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+
+      // Referral tizimi - boshqa userning faqat coins va referralCount ni yangilash
+      allow update: if isSignedIn() &&
+        request.auth.uid != userId &&
+        // Faqat bu fieldlar o'zgarishi mumkin
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coins', 'totalCoinsEarned', 'referralCount']) &&
+        // coins va totalCoinsEarned faqat oshishi mumkin
+        request.resource.data.coins >= resource.data.coins &&
+        request.resource.data.totalCoinsEarned >= resource.data.totalCoinsEarned &&
+        // referralCount faqat 1 ga oshishi mumkin
+        request.resource.data.referralCount == resource.data.referralCount + 1;
 
       // Faqat adminlar o'chirishi mumkin
-      allow delete: if isSignedIn() && resource.data.isAdmin == true;
+      allow delete: if isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
 
       // ---------- EXCHANGES SUBCOLLECTION ----------
       match /exchanges/{exchangeId} {
