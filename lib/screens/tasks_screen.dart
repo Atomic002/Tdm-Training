@@ -150,6 +150,9 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
   }
 
   Future<void> _handleTelegramTask(TaskModel task) async {
+    // Telegram sozlanganligini tekshirish
+    final isConfigured = await _telegramService.isConfigured();
+
     // Avval kanal linkini ochish
     String? channelLink = task.link;
     if (channelLink == null || channelLink.isEmpty) {
@@ -169,7 +172,299 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
 
     if (!mounted) return;
 
-    // Foydalanuvchidan tasdiqlash so'rash
+    // Agar Telegram sozlangan bo'lsa - ID bilan tekshirish
+    if (isConfigured) {
+      await _showTelegramVerificationDialog(task);
+    } else {
+      // Aks holda oddiy tasdiqlash
+      await _showSimpleTelegramConfirmDialog(task);
+    }
+  }
+
+  Future<void> _showTelegramVerificationDialog(TaskModel task) async {
+    final telegramIdController = TextEditingController();
+    bool isVerifying = false;
+    String? errorMessage;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.send, color: Colors.blue, size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Telegram Tekshirish',
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: 18),
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.title,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Telegram ID kiritish
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Telegram ID kiriting:',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: telegramIdController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: '123456789',
+                          hintStyle: TextStyle(
+                            color: AppColors.textSecondary.withValues(alpha: 0.5),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: AppColors.surface,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Qanday olish haqida info
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.blue, size: 18),
+                          SizedBox(width: 8),
+                          Text(
+                            'Telegram ID qanday olish?',
+                            style: TextStyle(
+                              color: Colors.blue,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        '1. Telegram\'da @userinfobot ga yozing\n'
+                        '2. /start bosing\n'
+                        '3. "Id:" qatoridagi raqamni nusxalang',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: () async {
+                          final uri = Uri.parse('https://t.me/userinfobot');
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          }
+                        },
+                        child: const Text(
+                          '@userinfobot ochish →',
+                          style: TextStyle(
+                            color: Colors.blue,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                if (errorMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.red, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            errorMessage!,
+                            style: const TextStyle(color: Colors.red, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                const SizedBox(height: 16),
+
+                // Mukofot
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.monetization_on, color: Colors.amber, size: 24),
+                      const SizedBox(width: 8),
+                      Text(
+                        '+${task.reward} coin olasiz',
+                        style: const TextStyle(
+                          color: Colors.amber,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isVerifying ? null : () => Navigator.pop(ctx, false),
+              child: Text(
+                'Bekor qilish',
+                style: TextStyle(
+                  color: isVerifying ? AppColors.textSecondary.withValues(alpha: 0.5) : AppColors.textSecondary,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: isVerifying
+                  ? null
+                  : () async {
+                      final idText = telegramIdController.text.trim();
+                      if (idText.isEmpty) {
+                        setDialogState(() => errorMessage = 'Telegram ID kiriting');
+                        return;
+                      }
+
+                      final telegramId = int.tryParse(idText);
+                      if (telegramId == null) {
+                        setDialogState(() => errorMessage = 'Noto\'g\'ri ID format');
+                        return;
+                      }
+
+                      setDialogState(() {
+                        isVerifying = true;
+                        errorMessage = null;
+                      });
+
+                      // Tekshirish
+                      final verified = await _telegramService.verifyChannelSubscriptionById(telegramId);
+
+                      if (!context.mounted) return;
+
+                      if (verified) {
+                        Navigator.pop(ctx, true);
+                      } else {
+                        setDialogState(() {
+                          isVerifying = false;
+                          errorMessage = 'Obuna topilmadi! Kanalga obuna bo\'ling va qaytadan urinib ko\'ring.';
+                        });
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: isVerifying
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text('Tekshirish'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == true) {
+      final success = await _firestoreService.completeTask(_uid!, task.id, task.reward);
+      if (success) {
+        HapticFeedback.heavyImpact();
+        setState(() => _completedTaskIds.add(task.id));
+        widget.onUpdate();
+        _showSnackBar('+${task.reward} coin oldiniz!');
+      } else {
+        _showSnackBar('Bu vazifa bugun allaqachon bajarilgan', isError: true);
+      }
+    }
+  }
+
+  Future<void> _showSimpleTelegramConfirmDialog(TaskModel task) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
