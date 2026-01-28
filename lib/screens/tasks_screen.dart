@@ -29,6 +29,35 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
   List<TaskModel> _tasks = [];
   AppUser? _appUser;
   late AnimationController _animController;
+  Widget _adminWarningBox() {
+  return Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Colors.orange.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.orange.withValues(alpha: 0.35)),
+    ),
+    child: const Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+        SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            "Ogohlantirish: Sizning obunangiz (yoki bajarilgan vazifa) adminlar tomonidan tekshiriladi.\n"
+            "Agar 'bajardim/obuna bo'ldim' deb aldasangiz, hisobingizdan 2 baravar coin yechib olinadi.",
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 
   @override
   void initState() {
@@ -150,36 +179,28 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
   }
 
   Future<void> _handleTelegramTask(TaskModel task) async {
-    // Telegram sozlanganligini tekshirish
-    final isConfigured = await _telegramService.isConfigured();
+  // Avval kanal linkini ochish
+  String? channelLink = task.link;
+  if (channelLink == null || channelLink.isEmpty) {
+    channelLink = await _telegramService.getChannelLink();
+  }
 
-    // Avval kanal linkini ochish
-    String? channelLink = task.link;
-    if (channelLink == null || channelLink.isEmpty) {
-      channelLink = await _telegramService.getChannelLink();
-    }
-
-    if (channelLink != null && channelLink.isNotEmpty) {
-      final uri = Uri.parse(channelLink);
-      try {
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-        }
-      } catch (e) {
-        debugPrint('Telegram ochishda xato: $e');
+  if (channelLink != null && channelLink.isNotEmpty) {
+    final uri = Uri.parse(channelLink);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
       }
-    }
-
-    if (!mounted) return;
-
-    // Agar Telegram sozlangan bo'lsa - ID bilan tekshirish
-    if (isConfigured) {
-      await _showTelegramVerificationDialog(task);
-    } else {
-      // Aks holda oddiy tasdiqlash
-      await _showSimpleTelegramConfirmDialog(task);
+    } catch (e) {
+      debugPrint('Telegram ochishda xato: $e');
     }
   }
+
+  if (!mounted) return;
+
+  // ✅ Endi doim oddiy tasdiqlash (tekshirish yo‘q)
+  await _showSimpleTelegramConfirmDialog(task);
+}
 
   Future<void> _showTelegramVerificationDialog(TaskModel task) async {
     final telegramIdController = TextEditingController();
@@ -505,7 +526,10 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
             const Text(
               'Telegram kanalga obuna bo\'ldingizmi?',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+
             ),
+                const SizedBox(height: 12),
+    _adminWarningBox(), // ✅ qo‘shildi
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
@@ -582,6 +606,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
       title: 'Instagram',
       taskTitle: task.title,
       question: 'Instagram sahifaga obuna bo\'ldingizmi?',
+      
       reward: task.reward,
     );
 
@@ -761,6 +786,8 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
               question,
               style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
             ),
+                const SizedBox(height: 12),
+    _adminWarningBox(), // ✅ qo‘shildi
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),

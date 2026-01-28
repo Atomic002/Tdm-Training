@@ -27,9 +27,24 @@ class TelegramService {
         return false;
       }
 
-      final channel = channelUsername.startsWith('@')
-          ? channelUsername
-          : '@$channelUsername';
+      // Kanal formatini aniqlash:
+      // - Agar raqam bilan boshlansa (yoki -100 bilan) → private kanal ID
+      // - Agar @ bilan boshlansa → public kanal username
+      // - Aks holda → public kanal username (@ qo'shamiz)
+      String channel;
+      if (channelUsername.startsWith('-100') || channelUsername.startsWith('-')) {
+        // Private kanal - raqamli ID
+        channel = channelUsername;
+      } else if (channelUsername.startsWith('@')) {
+        // Public kanal - @ bilan
+        channel = channelUsername;
+      } else if (int.tryParse(channelUsername) != null) {
+        // Faqat raqam - ID sifatida ishlatamiz
+        channel = channelUsername;
+      } else {
+        // Public kanal username - @ qo'shamiz
+        channel = '@$channelUsername';
+      }
 
       print('DEBUG [Telegram]: Tekshirish: user=$telegramUserId, channel=$channel');
 
@@ -118,8 +133,24 @@ class TelegramService {
   Future<String?> getChannelLink() async {
     try {
       final settings = await _firestoreService.getSettings();
+
+      // Avval telegramChannelLink ni tekshiramiz (to'liq link)
+      final channelLink = settings['telegramChannelLink'] as String?;
+      if (channelLink != null && channelLink.isNotEmpty) {
+        return channelLink;
+      }
+
+      // Keyin telegramChannelUsername ni tekshiramiz
       final channelUsername = settings['telegramChannelUsername'] as String?;
       if (channelUsername == null || channelUsername.isEmpty) return null;
+
+      // Agar raqamli ID bo'lsa, link yaratib bo'lmaydi
+      if (channelUsername.startsWith('-') || int.tryParse(channelUsername) != null) {
+        // Private kanal uchun invite link kerak bo'ladi
+        // telegramChannelLink field'dan olish kerak
+        print('DEBUG [Telegram]: Private kanal uchun telegramChannelLink field kerak');
+        return null;
+      }
 
       final username = channelUsername.replaceAll('@', '');
       return 'https://t.me/$username';
