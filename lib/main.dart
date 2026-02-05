@@ -4,9 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_application_1/screens/home_srceen.dart';
 import 'package:flutter_application_1/screens/login_screen.dart';
 import 'package:flutter_application_1/screens/no_connection_screen.dart';
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 
 import 'package:flutter_application_1/services/admob_service.dart';
 import 'package:flutter_application_1/services/firestore_service.dart';
@@ -60,6 +62,14 @@ void main() async {
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
+  // Global key for locale change
+  static final GlobalKey<_MyAppState> appKey = GlobalKey<_MyAppState>();
+
+  static void setLocale(BuildContext context, Locale locale) {
+    final state = context.findAncestorStateOfType<_MyAppState>();
+    state?._changeLocale(locale);
+  }
+
   @override
   State<MyApp> createState() => _MyAppState();
 }
@@ -69,12 +79,35 @@ class _MyAppState extends State<MyApp> {
   late StreamSubscription<InternetConnectionStatus> _listener;
   final InternetConnectionChecker _checker =
       InternetConnectionChecker.createInstance();
+  String? _initializedUserId; // Faqat bir marta init qilish uchun
+  Locale? _locale;
 
   @override
   void initState() {
     super.initState();
+    _loadSavedLocale();
     _checkInitialConnection();
     _startMonitoring();
+  }
+
+  Future<void> _loadSavedLocale() async {
+    final prefs = await SharedPreferences.getInstance();
+    final langCode = prefs.getString('locale');
+    if (langCode != null && mounted) {
+      setState(() {
+        _locale = Locale(langCode);
+      });
+    }
+  }
+
+  void _changeLocale(Locale locale) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('locale', locale.languageCode);
+    if (mounted) {
+      setState(() {
+        _locale = locale;
+      });
+    }
   }
 
   Future<void> _checkInitialConnection() async {
@@ -117,7 +150,10 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       debugShowMaterialGrid: false,
       title: 'PUBG TDM Training',
-      debugShowCheckedModeBanner: false, // Set to false for production
+      debugShowCheckedModeBanner: false,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      locale: _locale,
       theme: ThemeData(
         useMaterial3: false,
         brightness: Brightness.dark,
@@ -171,10 +207,13 @@ class _MyAppState extends State<MyApp> {
                   return const _LoadingScreen();
                 }
                 if (snapshot.hasData) {
-                  // User doc yaratish va daily login
+                  // User doc yaratish va daily login - faqat bir marta
                   final user = snapshot.data!;
-                  FirestoreService().createOrUpdateUser(user);
-                  FirestoreService().processDailyLogin(user.uid);
+                  if (_initializedUserId != user.uid) {
+                    _initializedUserId = user.uid;
+                    FirestoreService().createOrUpdateUser(user);
+                    FirestoreService().processDailyLogin(user.uid);
+                  }
                   return const HomeScreen();
                 }
                 return const LoginScreen();

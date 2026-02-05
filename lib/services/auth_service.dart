@@ -13,6 +13,46 @@ class AuthService {
   /// Auth holati o'zgarishlarini kuzatish
   static Stream<User?> get authStateChanges => _auth.authStateChanges();
 
+  /// Email va parol bilan ro'yxatdan o'tish
+  static Future<UserCredential> signUpWithEmailPassword({
+    required String email,
+    required String password,
+    required String name,
+  }) async {
+    final result = await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+
+    // Foydalanuvchi nomini yangilash
+    await result.user?.updateDisplayName(name);
+
+    // Firestore da user doc yaratish
+    if (result.user != null) {
+      await _firestoreService.createOrUpdateUser(result.user!);
+    }
+
+    return result;
+  }
+
+  /// Email va parol bilan kirish
+  static Future<UserCredential> signInWithEmailPassword({
+    required String email,
+    required String password,
+  }) async {
+    final result = await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+
+    // Firestore da user doc yangilash
+    if (result.user != null) {
+      await _firestoreService.createOrUpdateUser(result.user!);
+    }
+
+    return result;
+  }
+
   /// Google orqali kirish
   static Future<UserCredential?> signInWithGoogle() async {
     final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
@@ -38,6 +78,11 @@ class AuthService {
     }
 
     return result;
+  }
+
+  /// Parolni tiklash emaili yuborish
+  static Future<void> sendPasswordResetEmail(String email) async {
+    await _auth.sendPasswordResetEmail(email: email);
   }
 
   /// Chiqish

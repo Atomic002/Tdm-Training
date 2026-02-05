@@ -4,6 +4,7 @@ import 'package:flutter_application_1/services/firestore_service.dart';
 import 'package:flutter_application_1/services/admob_service.dart';
 import 'package:flutter_application_1/models/app_user.dart';
 import 'package:flutter_application_1/widgets/ad_banner.dart';
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import '../utils/app_colors.dart';
 
 class LeaderboardScreen extends StatefulWidget {
@@ -77,6 +78,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -86,9 +88,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'REYTING',
-          style: TextStyle(
+        title: Text(
+          l.leaderboard,
+          style: const TextStyle(
             color: AppColors.textPrimary,
             fontWeight: FontWeight.bold,
           ),
@@ -99,9 +101,9 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
           indicatorColor: AppColors.primary,
           labelColor: AppColors.primary,
           unselectedLabelColor: AppColors.textSecondary,
-          tabs: const [
-            Tab(text: 'Coinlar'),
-            Tab(text: 'UC'),
+          tabs: [
+            Tab(text: l.coins),
+            const Tab(text: 'UC'),
           ],
         ),
       ),
@@ -115,8 +117,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 : TabBarView(
                     controller: _tabController,
                     children: [
-                      _buildLeaderboardList(_coinLeaderboard, isCoin: true),
-                      _buildLeaderboardList(_ucLeaderboard, isCoin: false),
+                      _buildLeaderboardList(l, _coinLeaderboard, isCoin: true),
+                      _buildLeaderboardList(l, _ucLeaderboard, isCoin: false),
                     ],
                   ),
           ),
@@ -141,7 +143,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                   const Icon(Icons.person, color: AppColors.primary),
                   const SizedBox(width: 8),
                   Text(
-                    'Sizning o\'rningiz: #$_userRank',
+                    l.yourRank(_userRank),
                     style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.bold,
@@ -158,12 +160,12 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     );
   }
 
-  Widget _buildLeaderboardList(List<AppUser> users, {required bool isCoin}) {
+  Widget _buildLeaderboardList(AppLocalizations l, List<AppUser> users, {required bool isCoin}) {
     if (users.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
-          'Hali ma\'lumot yo\'q',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+          l.noDataYet,
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 16),
         ),
       );
     }
@@ -200,7 +202,7 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
             child: ListTile(
               leading: _buildRankWidget(rank),
               title: Text(
-                user.displayName.isNotEmpty ? user.displayName : 'Foydalanuvchi',
+                user.displayName.isNotEmpty ? user.displayName : l.user,
                 style: TextStyle(
                   color: AppColors.textPrimary,
                   fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.normal,
@@ -208,8 +210,8 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: isCurrentUser
-                  ? const Text('Siz',
-                      style: TextStyle(color: AppColors.primary, fontSize: 12))
+                  ? Text(l.you,
+                      style: const TextStyle(color: AppColors.primary, fontSize: 12))
                   : null,
               trailing: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

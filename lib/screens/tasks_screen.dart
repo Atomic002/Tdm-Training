@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter_application_1/services/firestore_service.dart';
@@ -9,6 +12,7 @@ import 'package:flutter_application_1/services/admob_service.dart';
 import 'package:flutter_application_1/models/task_model.dart';
 import 'package:flutter_application_1/models/app_user.dart';
 import 'package:flutter_application_1/widgets/ad_banner.dart';
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import '../utils/app_colors.dart';
 
 class TasksScreen extends StatefulWidget {
@@ -29,34 +33,40 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
   List<TaskModel> _tasks = [];
   AppUser? _appUser;
   late AnimationController _animController;
+  final TextEditingController _promoController = TextEditingController();
+  bool _isRedeemingPromo = false;
+
+  // TODO: O'zingizning bot username'ingizni qo'ying
+  static const String _telegramBotUrl = '@Follovertdm_bot';
+
   Widget _adminWarningBox() {
-  return Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: Colors.orange.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.orange.withValues(alpha: 0.35)),
-    ),
-    child: const Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
-        SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            "Ogohlantirish: Sizning obunangiz (yoki bajarilgan vazifa) adminlar tomonidan tekshiriladi.\n"
-            "Agar 'bajardim/obuna bo'ldim' deb aldasangiz, hisobingizdan 2 baravar coin yechib olinadi.",
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-              height: 1.35,
+    final l = AppLocalizations.of(context)!;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              l.taskWarning,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                height: 1.35,
+              ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
-}
+        ],
+      ),
+    );
+  }
 
 
   @override
@@ -67,31 +77,21 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
       duration: const Duration(milliseconds: 300),
     );
     _loadData();
-    AdMobService.loadInterstitialAd();
   }
 
   @override
   void dispose() {
     _animController.dispose();
-    _showInterstitialAdOnExit();
+    _promoController.dispose();
     super.dispose();
-  }
-
-  void _showInterstitialAdOnExit() {
-    try {
-      if (AdMobService.isInterstitialAdReady) {
-        AdMobService.showInterstitialAd();
-      }
-    } catch (e) {
-      debugPrint('Reklama ko\'rsatishda xatolik: $e');
-    }
   }
 
   Future<void> _loadData() async {
     if (_uid == null) {
       if (mounted) {
         setState(() => _isLoading = false);
-        _showSnackBar('Login qilmagan! Iltimos qaytadan kiriting', isError: true);
+        final l = AppLocalizations.of(context)!;
+        _showSnackBar(l.notLoggedIn, isError: true);
       }
       return;
     }
@@ -178,8 +178,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
     }
   }
 
-  Future<void> _handleTelegramTask(TaskModel task) async {
-  // Avval kanal linkini ochish
+Future<void> _handleTelegramTask(TaskModel task) async {
   String? channelLink = task.link;
   if (channelLink == null || channelLink.isEmpty) {
     channelLink = await _telegramService.getChannelLink();
@@ -198,11 +197,514 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
 
   if (!mounted) return;
 
-  // ✅ Endi doim oddiy tasdiqlash (tekshirish yo‘q)
-  await _showSimpleTelegramConfirmDialog(task);
+  await _showTelegramCodeVerificationDialog(task);
 }
 
+Future<void> _showTelegramCodeVerificationDialog(TaskModel task) async {
+  final l = AppLocalizations.of(context)!;
+  final telegramIdController = TextEditingController();
+  final codeController = TextEditingController();
+  bool isVerifying = false;
+  String? errorMessage;
+  String? successMessage;
+  int step = 1;
+
+  final result = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.send, color: Colors.blue, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                step == 1 ? l.telegramIdTitle : l.verificationCode,
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                task.title,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // STEP 1: Telegram ID kiriting
+              if (step == 1) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l.step1TelegramId,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: telegramIdController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: '123456789',
+                          hintStyle: TextStyle(
+                            color: AppColors.textSecondary.withValues(alpha: 0.5),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: AppColors.surface,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.info_outline, color: Colors.blue, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            l.howToGetTelegramId,
+                            style: const TextStyle(
+                              color: Colors.blue,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        l.telegramIdInstructions,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: () async {
+                          final uri = Uri.parse('https://t.me/your_bot_name');
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          }
+                        },
+                        child: Text(
+                          l.openBot,
+                          style: const TextStyle(
+                            color: Colors.blue,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              // STEP 2: Tasdiqlash kodi kiriting
+              if (step == 2) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.green, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              l.telegramIdConfirmed,
+                              style: const TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (successMessage != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          successMessage!,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l.step2EnterCode,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: codeController,
+                        keyboardType: TextInputType.number,
+                        maxLength: 4,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 8,
+                        ),
+                        textAlign: TextAlign.center,
+                        decoration: InputDecoration(
+                          hintText: '****',
+                          hintStyle: TextStyle(
+                            color: AppColors.textSecondary.withValues(alpha: 0.5),
+                            letterSpacing: 8,
+                          ),
+                          counterText: '',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: AppColors.surface,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.info_outline, color: Colors.orange, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            l.whereToGetCode,
+                            style: const TextStyle(
+                              color: Colors.orange,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        l.codeInstructions,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              if (errorMessage != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          errorMessage!,
+                          style: const TextStyle(color: Colors.red, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 12),
+              _adminWarningBox(),
+
+              const SizedBox(height: 16),
+
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.monetization_on, color: Colors.amber, size: 24),
+                    const SizedBox(width: 8),
+                    Text(
+                      l.coinReward(task.reward),
+                      style: const TextStyle(
+                        color: Colors.amber,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: isVerifying ? null : () => Navigator.pop(ctx, false),
+            child: Text(
+              l.cancel,
+              style: TextStyle(
+                color: isVerifying
+                    ? AppColors.textSecondary.withValues(alpha: 0.5)
+                    : AppColors.textSecondary,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: isVerifying
+                ? null
+                : () async {
+                    if (step == 1) {
+                      final idText = telegramIdController.text.trim();
+                      if (idText.isEmpty) {
+                        setDialogState(() => errorMessage = l.enterTelegramIdError);
+                        return;
+                      }
+
+                      final telegramId = int.tryParse(idText);
+                      if (telegramId == null) {
+                        setDialogState(() => errorMessage = l.invalidIdFormat);
+                        return;
+                      }
+
+                      setDialogState(() {
+                        isVerifying = true;
+                        errorMessage = null;
+                      });
+
+                      try {
+                        final response = await http.post(
+                          Uri.parse('YOUR_BOT_API_URL/api/verify-code'),
+                          headers: {'Content-Type': 'application/json'},
+                          body: json.encode({
+                            'userId': telegramId,
+                            'action': 'check',
+                            'secret': 'tdm-training-secret-2024',
+                          }),
+                        );
+
+                        if (!context.mounted) return;
+
+                        if (response.statusCode == 200) {
+                          final data = json.decode(response.body);
+                          if (data['success']) {
+                            setDialogState(() {
+                              step = 2;
+                              isVerifying = false;
+                              successMessage = l.sendCodeToBot;
+                              errorMessage = null;
+                            });
+                          } else {
+                            setDialogState(() {
+                              isVerifying = false;
+                              errorMessage = l.subscribeFirst;
+                            });
+                          }
+                        } else {
+                          setDialogState(() {
+                            isVerifying = false;
+                            errorMessage = l.serverError;
+                          });
+                        }
+                      } catch (e) {
+                        setDialogState(() {
+                          isVerifying = false;
+                          errorMessage = l.checkInternet;
+                        });
+                      }
+                    } else if (step == 2) {
+                      final code = codeController.text.trim();
+                      if (code.isEmpty || code.length != 4) {
+                        setDialogState(() => errorMessage = l.enter4DigitCode);
+                        return;
+                      }
+
+                      setDialogState(() {
+                        isVerifying = true;
+                        errorMessage = null;
+                      });
+
+                      try {
+                        final telegramId = int.parse(telegramIdController.text.trim());
+
+                        final response = await http.post(
+                          Uri.parse('YOUR_BOT_API_URL/api/verify-code'),
+                          headers: {'Content-Type': 'application/json'},
+                          body: json.encode({
+                            'userId': telegramId,
+                            'code': code,
+                            'action': 'verify',
+                            'secret': 'tdm-training-secret-2024',
+                          }),
+                        );
+
+                        if (!context.mounted) return;
+
+                        if (response.statusCode == 200) {
+                          final data = json.decode(response.body);
+                          if (data['success']) {
+                            Navigator.pop(ctx, true);
+                          } else {
+                            setDialogState(() {
+                              isVerifying = false;
+                              errorMessage = data['message'] ?? l.wrongCode;
+                            });
+                          }
+                        } else {
+                          setDialogState(() {
+                            isVerifying = false;
+                            errorMessage = l.serverError;
+                          });
+                        }
+                      } catch (e) {
+                        setDialogState(() {
+                          isVerifying = false;
+                          errorMessage = l.checkInternet;
+                        });
+                      }
+                    }
+                  },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: isVerifying
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : Text(step == 1 ? l.next : l.verify),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  if (result == true) {
+    final l2 = AppLocalizations.of(context)!;
+    final success = await _firestoreService.completeTask(_uid!, task.id, task.reward);
+    if (success) {
+      HapticFeedback.heavyImpact();
+      setState(() => _completedTaskIds.add(task.id));
+      widget.onUpdate();
+      _showSnackBar(l2.coinEarned(task.reward));
+    } else {
+      _showSnackBar(l2.taskAlreadyCompleted, isError: true);
+    }
+  }
+}
+
+
   Future<void> _showTelegramVerificationDialog(TaskModel task) async {
+    final l = AppLocalizations.of(context)!;
     final telegramIdController = TextEditingController();
     bool isVerifying = false;
     String? errorMessage;
@@ -225,10 +727,10 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                 child: const Icon(Icons.send, color: Colors.blue, size: 24),
               ),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Telegram Tekshirish',
-                  style: TextStyle(color: AppColors.textPrimary, fontSize: 18),
+                  l.telegramVerify,
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 18),
                 ),
               ),
             ],
@@ -248,7 +750,6 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                 ),
                 const SizedBox(height: 16),
 
-                // Telegram ID kiritish
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -258,9 +759,9 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Telegram ID kiriting:',
-                        style: TextStyle(
+                      Text(
+                        l.enterTelegramIdLabel,
+                        style: const TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 12,
                         ),
@@ -297,7 +798,6 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
 
                 const SizedBox(height: 12),
 
-                // Qanday olish haqida info
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -308,13 +808,13 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Row(
+                      Row(
                         children: [
-                          Icon(Icons.info_outline, color: Colors.blue, size: 18),
-                          SizedBox(width: 8),
+                          const Icon(Icons.info_outline, color: Colors.blue, size: 18),
+                          const SizedBox(width: 8),
                           Text(
-                            'Telegram ID qanday olish?',
-                            style: TextStyle(
+                            l.howToGetTelegramId,
+                            style: const TextStyle(
                               color: Colors.blue,
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
@@ -323,11 +823,9 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                         ],
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        '1. Telegram\'da @userinfobot ga yozing\n'
-                        '2. /start bosing\n'
-                        '3. "Id:" qatoridagi raqamni nusxalang',
-                        style: TextStyle(
+                      Text(
+                        l.telegramIdInstructions2,
+                        style: const TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 12,
                         ),
@@ -340,9 +838,9 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                             await launchUrl(uri, mode: LaunchMode.externalApplication);
                           }
                         },
-                        child: const Text(
-                          '@userinfobot ochish →',
-                          style: TextStyle(
+                        child: Text(
+                          l.openUserInfoBot,
+                          style: const TextStyle(
                             color: Colors.blue,
                             fontWeight: FontWeight.bold,
                             fontSize: 12,
@@ -379,7 +877,6 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
 
                 const SizedBox(height: 16),
 
-                // Mukofot
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -392,7 +889,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                       const Icon(Icons.monetization_on, color: Colors.amber, size: 24),
                       const SizedBox(width: 8),
                       Text(
-                        '+${task.reward} coin olasiz',
+                        l.coinReward(task.reward),
                         style: const TextStyle(
                           color: Colors.amber,
                           fontWeight: FontWeight.bold,
@@ -408,7 +905,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
             TextButton(
               onPressed: isVerifying ? null : () => Navigator.pop(ctx, false),
               child: Text(
-                'Bekor qilish',
+                l.cancel,
                 style: TextStyle(
                   color: isVerifying ? AppColors.textSecondary.withValues(alpha: 0.5) : AppColors.textSecondary,
                 ),
@@ -420,13 +917,13 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                   : () async {
                       final idText = telegramIdController.text.trim();
                       if (idText.isEmpty) {
-                        setDialogState(() => errorMessage = 'Telegram ID kiriting');
+                        setDialogState(() => errorMessage = l.enterTelegramIdError);
                         return;
                       }
 
                       final telegramId = int.tryParse(idText);
                       if (telegramId == null) {
-                        setDialogState(() => errorMessage = 'Noto\'g\'ri ID format');
+                        setDialogState(() => errorMessage = l.invalidIdFormat);
                         return;
                       }
 
@@ -435,7 +932,6 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                         errorMessage = null;
                       });
 
-                      // Tekshirish
                       final verified = await _telegramService.verifyChannelSubscriptionById(telegramId);
 
                       if (!context.mounted) return;
@@ -445,7 +941,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                       } else {
                         setDialogState(() {
                           isVerifying = false;
-                          errorMessage = 'Obuna topilmadi! Kanalga obuna bo\'ling va qaytadan urinib ko\'ring.';
+                          errorMessage = l.subscriptionNotFound;
                         });
                       }
                     },
@@ -465,7 +961,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
-                  : const Text('Tekshirish'),
+                  : Text(l.check),
             ),
           ],
         ),
@@ -473,19 +969,21 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
     );
 
     if (result == true) {
+      final l2 = AppLocalizations.of(context)!;
       final success = await _firestoreService.completeTask(_uid!, task.id, task.reward);
       if (success) {
         HapticFeedback.heavyImpact();
         setState(() => _completedTaskIds.add(task.id));
         widget.onUpdate();
-        _showSnackBar('+${task.reward} coin oldiniz!');
+        _showSnackBar(l2.coinEarned(task.reward));
       } else {
-        _showSnackBar('Bu vazifa bugun allaqachon bajarilgan', isError: true);
+        _showSnackBar(l2.taskAlreadyCompleted, isError: true);
       }
     }
   }
 
   Future<void> _showSimpleTelegramConfirmDialog(TaskModel task) async {
+    final l = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -502,10 +1000,10 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
               child: const Icon(Icons.send, color: Colors.blue, size: 24),
             ),
             const SizedBox(width: 12),
-            const Expanded(
+            Expanded(
               child: Text(
-                'Telegram Kanal',
-                style: TextStyle(color: AppColors.textPrimary, fontSize: 18),
+                l.telegramChannel,
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 18),
               ),
             ),
           ],
@@ -523,13 +1021,12 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
               ),
             ),
             const SizedBox(height: 12),
-            const Text(
-              'Telegram kanalga obuna bo\'ldingizmi?',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
-
+            Text(
+              l.subscribedToChannel,
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
             ),
-                const SizedBox(height: 12),
-    _adminWarningBox(), // ✅ qo‘shildi
+            const SizedBox(height: 12),
+            _adminWarningBox(),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
@@ -543,7 +1040,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                   const Icon(Icons.monetization_on, color: Colors.amber, size: 24),
                   const SizedBox(width: 8),
                   Text(
-                    '+${task.reward} coin olasiz',
+                    l.coinReward(task.reward),
                     style: const TextStyle(
                       color: Colors.amber,
                       fontWeight: FontWeight.bold,
@@ -557,9 +1054,9 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text(
-              'Yo\'q',
-              style: TextStyle(color: AppColors.textSecondary),
+            child: Text(
+              l.no,
+              style: const TextStyle(color: AppColors.textSecondary),
             ),
           ),
           ElevatedButton(
@@ -571,21 +1068,22 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            child: const Text('Ha, obuna bo\'ldim'),
+            child: Text(l.yesSubscribed),
           ),
         ],
       ),
     );
 
     if (confirmed == true) {
+      final l2 = AppLocalizations.of(context)!;
       final success = await _firestoreService.completeTask(_uid!, task.id, task.reward);
       if (success) {
         HapticFeedback.heavyImpact();
         setState(() => _completedTaskIds.add(task.id));
         widget.onUpdate();
-        _showSnackBar('+${task.reward} coin oldiniz!');
+        _showSnackBar(l2.coinEarned(task.reward));
       } else {
-        _showSnackBar('Bu vazifa bugun allaqachon bajarilgan', isError: true);
+        _showSnackBar(l2.taskAlreadyCompleted, isError: true);
       }
     }
   }
@@ -600,25 +1098,26 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
 
     if (!mounted) return;
 
+    final l = AppLocalizations.of(context)!;
     final confirmed = await _showTaskConfirmDialog(
       icon: Icons.camera_alt,
       color: Colors.pink,
       title: 'Instagram',
       taskTitle: task.title,
-      question: 'Instagram sahifaga obuna bo\'ldingizmi?',
-      
+      question: l.subscribedToInstagram,
       reward: task.reward,
     );
 
     if (confirmed == true) {
+      final l2 = AppLocalizations.of(context)!;
       final success = await _firestoreService.completeTask(_uid!, task.id, task.reward);
       if (success) {
         HapticFeedback.heavyImpact();
         setState(() => _completedTaskIds.add(task.id));
         widget.onUpdate();
-        _showSnackBar('+${task.reward} coin oldiniz!');
+        _showSnackBar(l2.coinEarned(task.reward));
       } else {
-        _showSnackBar('Bu vazifa bugun allaqachon bajarilgan', isError: true);
+        _showSnackBar(l2.taskAlreadyCompleted, isError: true);
       }
     }
   }
@@ -633,84 +1132,86 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
 
     if (!mounted) return;
 
+    final l = AppLocalizations.of(context)!;
     final confirmed = await _showTaskConfirmDialog(
       icon: _getTaskIcon(task.type),
       color: _getTaskColor(task.type),
-      title: _getTaskTypeName(task.type),
+      title: _getTaskTypeName(l, task.type),
       taskTitle: task.title,
-      question: 'Vazifani bajardingizmi?',
+      question: l.taskCompletedQuestion,
       reward: task.reward,
     );
 
     if (confirmed == true) {
+      final l2 = AppLocalizations.of(context)!;
       final success = await _firestoreService.completeTask(_uid!, task.id, task.reward);
       if (success) {
         HapticFeedback.heavyImpact();
         setState(() => _completedTaskIds.add(task.id));
         widget.onUpdate();
-        _showSnackBar('+${task.reward} coin oldiniz!');
+        _showSnackBar(l2.coinEarned(task.reward));
       } else {
-        _showSnackBar('Bu vazifa bugun allaqachon bajarilgan', isError: true);
+        _showSnackBar(l2.taskAlreadyCompleted, isError: true);
       }
     }
   }
 
   Future<void> _handleShareAppTask(TaskModel task) async {
-    await Share.share(
-      'TDM Training - UC topishning eng oson yo\'li! Bu ilovani yuklab oling va coin to\'plang!',
-    );
+    final l = AppLocalizations.of(context)!;
+    await Share.share(l.shareAppText);
 
     if (!mounted) return;
 
     final confirmed = await _showTaskConfirmDialog(
       icon: Icons.share,
       color: Colors.purple,
-      title: 'Ulashish',
+      title: l.share,
       taskTitle: task.title,
-      question: 'Ilovani ulashdingizmi?',
+      question: l.sharedApp,
       reward: task.reward,
     );
 
     if (confirmed == true) {
+      final l2 = AppLocalizations.of(context)!;
       final success = await _firestoreService.completeTask(_uid!, task.id, task.reward);
       if (success) {
         HapticFeedback.heavyImpact();
         setState(() => _completedTaskIds.add(task.id));
         widget.onUpdate();
-        _showSnackBar('+${task.reward} coin oldiniz!');
+        _showSnackBar(l2.coinEarned(task.reward));
       } else {
-        _showSnackBar('Bu vazifa bugun allaqachon bajarilgan', isError: true);
+        _showSnackBar(l2.taskAlreadyCompleted, isError: true);
       }
     }
   }
 
   Future<void> _handleDailyLoginTask(TaskModel task) async {
+    final l = AppLocalizations.of(context)!;
     final success = await _firestoreService.completeTask(_uid!, task.id, task.reward);
     if (success) {
       HapticFeedback.heavyImpact();
       setState(() => _completedTaskIds.add(task.id));
       widget.onUpdate();
-      _showSnackBar('+${task.reward} coin oldiniz!');
+      _showSnackBar(l.coinEarned(task.reward));
     } else {
-      _showSnackBar('Bu vazifa bugun allaqachon bajarilgan', isError: true);
+      _showSnackBar(l.taskAlreadyCompleted, isError: true);
     }
   }
 
   Future<void> _handleReferralTask(TaskModel task) async {
     if (_appUser == null) return;
 
-    await Share.share(
-      'TDM Training ilovasini yuklab, mening taklif kodimni kiriting: ${_appUser!.referralCode}\n'
-      'Do\'stingiz uchun +50 coin, siz uchun +100 coin!',
-    );
+    final l = AppLocalizations.of(context)!;
+    await Share.share(l.referralShareText(_appUser!.referralCode));
   }
 
   Future<void> _handleWatchAdTask(TaskModel task) async {
     if (_uid == null) return;
 
+    final l = AppLocalizations.of(context)!;
     final canWatch = await _firestoreService.canWatchAd(_uid!);
     if (!canWatch) {
-      _showSnackBar('Bugungi reklama limiti tugagan', isError: true);
+      _showSnackBar(l.adLimitReachedToday, isError: true);
       return;
     }
 
@@ -722,18 +1223,18 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
             HapticFeedback.heavyImpact();
             setState(() => _completedTaskIds.add(task.id));
             widget.onUpdate();
-            _showSnackBar('+${FirestoreService.coinsPerAd} coin oldiniz!');
+            _showSnackBar(l.coinsAdded(FirestoreService.coinsPerAd));
           }
         },
         onRewardEarned: () {},
         onFailed: () {
           if (mounted) {
-            _showSnackBar('Reklama yuklanmadi', isError: true);
+            _showSnackBar(l.adNotLoaded, isError: true);
           }
         },
       );
     } catch (e) {
-      _showSnackBar('Reklama yuklanmadi', isError: true);
+      _showSnackBar(l.adNotLoaded, isError: true);
     }
   }
 
@@ -745,6 +1246,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
     required String question,
     required int reward,
   }) {
+    final l = AppLocalizations.of(context)!;
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -787,7 +1289,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
               style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
             ),
                 const SizedBox(height: 12),
-    _adminWarningBox(), // ✅ qo‘shildi
+    _adminWarningBox(),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
@@ -801,7 +1303,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                   const Icon(Icons.monetization_on, color: Colors.amber, size: 24),
                   const SizedBox(width: 8),
                   Text(
-                    '+$reward coin olasiz',
+                    l.coinReward(reward),
                     style: const TextStyle(
                       color: Colors.amber,
                       fontWeight: FontWeight.bold,
@@ -815,9 +1317,9 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text(
-              'Yo\'q',
-              style: TextStyle(color: AppColors.textSecondary),
+            child: Text(
+              l.no,
+              style: const TextStyle(color: AppColors.textSecondary),
             ),
           ),
           ElevatedButton(
@@ -829,14 +1331,14 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            child: const Text('Ha, bajardim'),
+            child: Text(l.yesCompleted),
           ),
         ],
       ),
     );
   }
 
-  String _getTaskTypeName(TaskType type) {
+  String _getTaskTypeName(AppLocalizations l, TaskType type) {
     switch (type) {
       case TaskType.telegramSubscribe:
         return 'Telegram';
@@ -850,19 +1352,19 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
       case TaskType.facebookLike:
         return 'Facebook';
       case TaskType.dailyLogin:
-        return 'Kunlik bonus';
+        return l.taskTypeDailyBonus;
       case TaskType.inviteFriend:
-        return 'Do\'st taklif';
+        return l.taskTypeInviteFriend;
       case TaskType.watchAd:
-        return 'Reklama';
+        return l.taskTypeAd;
       case TaskType.playGame:
-        return 'O\'yin';
+        return l.taskTypeGame;
       case TaskType.appDownload:
-        return 'Ilova';
+        return l.taskTypeApp;
       case TaskType.shareApp:
-        return 'Ulashish';
+        return l.taskTypeShare;
       case TaskType.rateApp:
-        return 'Baholash';
+        return l.taskTypeRate;
     }
   }
 
@@ -929,6 +1431,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
     final completedCount = _completedTaskIds.length;
     final totalCount = _tasks.length;
     final progress = totalCount > 0 ? completedCount / totalCount : 0.0;
@@ -938,10 +1441,8 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
       body: SafeArea(
         child: Column(
           children: [
-            // Header
-            _buildHeader(completedCount, totalCount, progress),
+            _buildHeader(l, completedCount, totalCount, progress),
 
-            // Content
             Expanded(
               child: _isLoading
                   ? const Center(
@@ -952,13 +1453,15 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                       color: AppColors.primary,
                       child: CustomScrollView(
                         slivers: [
-                          // Referral Section
                           if (_appUser != null)
                             SliverToBoxAdapter(
-                              child: _buildReferralSection(),
+                              child: _buildReferralSection(l),
                             ),
 
-                          // Tasks Section
+                          SliverToBoxAdapter(
+                            child: _buildPromoCodeSection(l),
+                          ),
+
                           SliverPadding(
                             padding: const EdgeInsets.all(16),
                             sliver: _tasks.isEmpty
@@ -973,18 +1476,18 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                                             size: 80,
                                           ),
                                           const SizedBox(height: 16),
-                                          const Text(
-                                            'Hozircha vazifalar yo\'q',
-                                            style: TextStyle(
+                                          Text(
+                                            l.noTasksYet,
+                                            style: const TextStyle(
                                               color: AppColors.textSecondary,
                                               fontSize: 18,
                                               fontWeight: FontWeight.w500,
                                             ),
                                           ),
                                           const SizedBox(height: 8),
-                                          const Text(
-                                            'Tez orada yangi vazifalar qo\'shiladi',
-                                            style: TextStyle(
+                                          Text(
+                                            l.newTasksComingSoon,
+                                            style: const TextStyle(
                                               color: AppColors.textSecondary,
                                               fontSize: 14,
                                             ),
@@ -998,7 +1501,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                                       (context, index) {
                                         final task = _tasks[index];
                                         final isCompleted = _completedTaskIds.contains(task.id);
-                                        return _buildTaskCard(task, isCompleted, index);
+                                        return _buildTaskCard(l, task, isCompleted, index);
                                       },
                                       childCount: _tasks.length,
                                     ),
@@ -1016,7 +1519,218 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildHeader(int completed, int total, double progress) {
+  Future<void> _redeemPromoCode() async {
+    if (_uid == null) return;
+    final code = _promoController.text.trim().toUpperCase();
+    if (code.isEmpty) return;
+
+    setState(() => _isRedeemingPromo = true);
+
+    final result = await _firestoreService.redeemPromoCode(_uid!, code);
+
+    if (!mounted) return;
+    setState(() => _isRedeemingPromo = false);
+
+    final l = AppLocalizations.of(context)!;
+
+    if (result['success'] == true) {
+      final coins = result['coins'] as int;
+      HapticFeedback.heavyImpact();
+      _promoController.clear();
+      widget.onUpdate();
+      _showSnackBar(l.promoCodeSuccess(coins));
+    } else {
+      final message = result['message'] as String;
+      String errorText;
+      switch (message) {
+        case 'invalid':
+          errorText = l.promoCodeInvalid;
+          break;
+        case 'already_used':
+          errorText = l.promoCodeUsed;
+          break;
+        default:
+          errorText = l.promoCodeError;
+      }
+      _showSnackBar(errorText, isError: true);
+    }
+  }
+
+  Widget _buildPromoCodeSection(AppLocalizations l) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF0088CC).withValues(alpha: 0.2),
+            const Color(0xFF0088CC).withValues(alpha: 0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFF0088CC).withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0088CC).withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.send,
+                  color: Color(0xFF0088CC),
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l.promoCodeTitle,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      l.promoCodeDesc,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Open bot button
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                final uri = Uri.parse(_telegramBotUrl);
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+              icon: const Icon(Icons.open_in_new, size: 18),
+              label: Text(l.openTelegramBot),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF0088CC),
+                side: const BorderSide(color: Color(0xFF0088CC)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Promo code input
+          Text(
+            l.enterPromoCode,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _promoController,
+                  textCapitalization: TextCapitalization.characters,
+                  maxLength: 8,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    letterSpacing: 3,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'XXXXXXXX',
+                    hintStyle: TextStyle(
+                      color: AppColors.textSecondary.withValues(alpha: 0.5),
+                      letterSpacing: 3,
+                    ),
+                    counterText: '',
+                    filled: true,
+                    fillColor: AppColors.background,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: Color(0xFF0088CC),
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton(
+                onPressed: _isRedeemingPromo ? null : _redeemPromoCode,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0088CC),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: _isRedeemingPromo
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Text(
+                        l.redeemCode,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(AppLocalizations l, int completed, int total, double progress) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1031,7 +1745,6 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
       ),
       child: Column(
         children: [
-          // Top bar
           Row(
             children: [
               GestureDetector(
@@ -1050,10 +1763,10 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                 ),
               ),
               const SizedBox(width: 16),
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'VAZIFALAR',
-                  style: TextStyle(
+                  l.tasks,
+                  style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -1090,7 +1803,6 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
             ],
           ),
 
-          // Progress bar
           if (total > 0) ...[
             const SizedBox(height: 20),
             Column(
@@ -1099,9 +1811,9 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Bugungi progress',
-                      style: TextStyle(
+                    Text(
+                      l.todayProgress,
+                      style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 12,
                       ),
@@ -1136,12 +1848,11 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildReferralSection() {
+  Widget _buildReferralSection(AppLocalizations l) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(
         children: [
-          // Referral code card
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -1177,9 +1888,9 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Taklif kodingiz',
-                            style: TextStyle(
+                          Text(
+                            l.yourReferralCode,
+                            style: const TextStyle(
                               color: AppColors.textSecondary,
                               fontSize: 12,
                             ),
@@ -1207,10 +1918,10 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                         onPressed: () {
                           Clipboard.setData(ClipboardData(text: _appUser!.referralCode));
                           HapticFeedback.lightImpact();
-                          _showSnackBar('Kod nusxalandi!');
+                          _showSnackBar(l.codeCopied);
                         },
                         icon: const Icon(Icons.copy, size: 18),
-                        label: const Text('Nusxalash'),
+                        label: Text(l.copy),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.green,
                           side: const BorderSide(color: Colors.green),
@@ -1225,13 +1936,10 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          Share.share(
-                            'TDM Training ilovasini yuklab, mening taklif kodimni kiriting: ${_appUser!.referralCode}\n'
-                            'Do\'stingiz uchun +50 coin, siz uchun +100 coin!',
-                          );
+                          Share.share(l.referralShareText(_appUser!.referralCode));
                         },
                         icon: const Icon(Icons.share, size: 18),
-                        label: const Text('Ulashish'),
+                        label: Text(l.share),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
@@ -1257,7 +1965,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                       const Icon(Icons.info_outline, color: Colors.green, size: 18),
                       const SizedBox(width: 8),
                       Text(
-                        'Har bir taklif uchun +100 coin oling!',
+                        l.referralEarnInfo,
                         style: TextStyle(
                           color: Colors.green.shade300,
                           fontSize: 12,
@@ -1270,7 +1978,6 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
             ),
           ),
 
-          // Referral code input (if not referred yet)
           if (_appUser!.referredBy == null)
             Container(
               margin: const EdgeInsets.only(top: 12),
@@ -1288,7 +1995,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildTaskCard(TaskModel task, bool isCompleted, int index) {
+  Widget _buildTaskCard(AppLocalizations l, TaskModel task, bool isCompleted, int index) {
     final color = _getTaskColor(task.type);
     final icon = _getTaskIcon(task.type);
 
@@ -1342,7 +2049,6 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  // Icon
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
@@ -1370,7 +2076,6 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                   ),
                   const SizedBox(width: 14),
 
-                  // Content
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1401,7 +2106,6 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                   ),
                   const SizedBox(width: 12),
 
-                  // Reward
                   Column(
                     children: [
                       Container(
@@ -1437,7 +2141,7 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              isCompleted ? 'Bajarildi' : '+${task.reward}',
+                              isCompleted ? l.taskCompleted : '+${task.reward}',
                               style: TextStyle(
                                 color: isCompleted ? AppColors.success : Colors.amber,
                                 fontWeight: FontWeight.bold,
@@ -1485,11 +2189,12 @@ class _ReferralCodeInputState extends State<_ReferralCodeInput> {
   }
 
   Future<void> _applyCode() async {
+    final l = AppLocalizations.of(context)!;
     final code = _controller.text.trim().toUpperCase();
     if (code.isEmpty || code.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('6 belgili kod kiriting'),
+          content: Text(l.enter6DigitCode),
           backgroundColor: AppColors.danger,
           behavior: SnackBarBehavior.floating,
           margin: const EdgeInsets.all(16),
@@ -1510,11 +2215,11 @@ class _ReferralCodeInputState extends State<_ReferralCodeInput> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
-            children: const [
-              Icon(Icons.celebration, color: Colors.white),
-              SizedBox(width: 12),
+            children: [
+              const Icon(Icons.celebration, color: Colors.white),
+              const SizedBox(width: 12),
               Expanded(
-                child: Text('+50 coin oldingiz! Taklif qiluvchi ham +100 coin oldi.'),
+                child: Text(l.referralSuccess),
               ),
             ],
           ),
@@ -1528,7 +2233,7 @@ class _ReferralCodeInputState extends State<_ReferralCodeInput> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Kod topilmadi yoki allaqachon ishlatilgan'),
+          content: Text(l.referralCodeNotFound),
           backgroundColor: AppColors.danger,
           behavior: SnackBarBehavior.floating,
           margin: const EdgeInsets.all(16),
@@ -1540,6 +2245,7 @@ class _ReferralCodeInputState extends State<_ReferralCodeInput> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1558,9 +2264,9 @@ class _ReferralCodeInputState extends State<_ReferralCodeInput> {
                 size: 20,
               ),
               const SizedBox(width: 8),
-              const Text(
-                'Taklif kodi bor?',
-                style: TextStyle(
+              Text(
+                l.haveReferralCode,
+                style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
@@ -1625,16 +2331,16 @@ class _ReferralCodeInputState extends State<_ReferralCodeInput> {
                           valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                         ),
                       )
-                    : const Text(
-                        'Tasdiqlash',
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                    : Text(
+                        l.confirm,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            'Taklif kodi kiritib +50 coin oling!',
+            l.referralEarnHint,
             style: TextStyle(
               color: AppColors.textSecondary.withValues(alpha: 0.7),
               fontSize: 12,

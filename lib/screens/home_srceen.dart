@@ -14,6 +14,11 @@ import 'package:flutter_application_1/screens/tasks_screen.dart';
 import 'package:flutter_application_1/screens/leaderboard_screen.dart';
 import 'package:flutter_application_1/screens/mini_pubg_game_screen.dart';
 import 'package:flutter_application_1/screens/admin/admin_dashboard_screen.dart';
+import 'package:flutter_application_1/screens/uc_shop_screen.dart';
+import 'package:flutter_application_1/models/announcement_model.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_application_1/l10n/app_localizations.dart';
+import 'package:flutter_application_1/main.dart';
 import '../utils/app_colors.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -34,6 +39,8 @@ class _HomeScreenState extends State<HomeScreen>
   int _totalUC = 0;
   bool _isLoading = true;
   bool _isAdmin = false;
+  AppUser? _appUser;
+  List<AnnouncementModel> _announcements = [];
 
   final ScrollController _scrollController = ScrollController();
 
@@ -90,12 +97,20 @@ class _HomeScreenState extends State<HomeScreen>
 
     try {
       if (_user == null) return;
-      final appUser = await _firestoreService.getUser(_user!.uid);
+      final results = await Future.wait([
+        _firestoreService.getUser(_user!.uid),
+        _firestoreService.getActiveAnnouncements(),
+      ]);
+
+      final appUser = results[0] as AppUser?;
+      final announcements = results[1] as List<AnnouncementModel>;
 
       if (mounted) {
         setState(() {
+          _appUser = appUser;
           _currentCoins = appUser?.coins ?? 0;
           _totalUC = appUser?.totalUCExchanged ?? 0;
+          _announcements = announcements;
           _isLoading = false;
         });
       }
@@ -107,7 +122,8 @@ class _HomeScreenState extends State<HomeScreen>
           _totalUC = 0;
           _isLoading = false;
         });
-        _showErrorSnackBar('Ma\'lumotlarni yuklashda xatolik yuz berdi');
+        final l = AppLocalizations.of(context);
+        _showErrorSnackBar(l?.dataLoadError ?? 'Ma\'lumotlarni yuklashda xatolik yuz berdi');
       }
     }
   }
@@ -144,6 +160,7 @@ class _HomeScreenState extends State<HomeScreen>
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenHeight < 700;
+    final l = AppLocalizations.of(context)!;
 
     return Scaffold(
       body: Container(
@@ -207,7 +224,7 @@ class _HomeScreenState extends State<HomeScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'PUBG TDM',
+                              l.pubgTdm,
                               style: TextStyle(
                                 fontSize: isSmallScreen ? 16 : 20,
                                 fontWeight: FontWeight.bold,
@@ -215,7 +232,7 @@ class _HomeScreenState extends State<HomeScreen>
                               ),
                             ),
                             Text(
-                              'TRAINING',
+                              l.training,
                               style: TextStyle(
                                 fontSize: isSmallScreen ? 10 : 12,
                                 color: AppColors.textSecondary,
@@ -426,7 +443,7 @@ class _HomeScreenState extends State<HomeScreen>
                                     ),
                                     SizedBox(height: isSmallScreen ? 12 : 16),
                                     Text(
-                                      'REACTION',
+                                      l.reaction,
                                       style: TextStyle(
                                         fontSize: isSmallScreen ? 24 : 28,
                                         fontWeight: FontWeight.bold,
@@ -435,7 +452,7 @@ class _HomeScreenState extends State<HomeScreen>
                                       ),
                                     ),
                                     Text(
-                                      'TRAINING',
+                                      l.training,
                                       style: TextStyle(
                                         fontSize: isSmallScreen ? 14 : 16,
                                         fontWeight: FontWeight.w300,
@@ -453,7 +470,7 @@ class _HomeScreenState extends State<HomeScreen>
                                   children: [
                                     Expanded(
                                       child: _buildStatCard(
-                                        'Coinlar',
+                                        l.coins,
                                         '$_currentCoins',
                                         Icons.monetization_on,
                                         Colors.amber.shade600,
@@ -463,7 +480,7 @@ class _HomeScreenState extends State<HomeScreen>
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: _buildStatCard(
-                                        'Jami UC',
+                                        l.totalUC,
                                         '$_totalUC',
                                         Icons.diamond,
                                         AppColors.accent,
@@ -475,12 +492,18 @@ class _HomeScreenState extends State<HomeScreen>
                                 SizedBox(height: isSmallScreen ? 20 : 30),
                               ],
 
+                              // Announcements Section
+                              if (_announcements.isNotEmpty) ...[
+                                _buildAnnouncementsSection(isSmallScreen, l),
+                                SizedBox(height: isSmallScreen ? 20 : 30),
+                              ],
+
                               // Menu Buttons
                               Column(
                                 children: [
                                   _buildMenuButton(
-                                    title: 'BOSHLASH',
-                                    subtitle: 'Reaction training o\'ynash',
+                                    title: l.start,
+                                    subtitle: l.startSubtitle,
                                     icon: Icons.play_arrow,
                                     onTap: () => _navigateToTraining(),
                                     color: AppColors.primary,
@@ -488,8 +511,8 @@ class _HomeScreenState extends State<HomeScreen>
                                   ),
                                   SizedBox(height: isSmallScreen ? 12 : 16),
                                   _buildMenuButton(
-                                    title: 'COINLAR',
-                                    subtitle: 'Coin yig\'ish va UC almashish',
+                                    title: l.coinsMenu,
+                                    subtitle: l.coinsMenuSubtitle,
                                     icon: Icons.monetization_on,
                                     onTap: () => _navigateToCoins(),
                                     color: Colors.amber.shade600,
@@ -497,8 +520,17 @@ class _HomeScreenState extends State<HomeScreen>
                                   ),
                                   SizedBox(height: isSmallScreen ? 12 : 16),
                                   _buildMenuButton(
-                                    title: 'VAZIFALAR',
-                                    subtitle: 'Vazifa bajaring — coin oling',
+                                    title: l.ucShop,
+                                    subtitle: l.ucShopSubtitle,
+                                    icon: Icons.shopping_cart,
+                                    onTap: () => _navigateToUCShop(),
+                                    color: Colors.teal,
+                                    isSmallScreen: isSmallScreen,
+                                  ),
+                                  SizedBox(height: isSmallScreen ? 12 : 16),
+                                  _buildMenuButton(
+                                    title: l.tasks,
+                                    subtitle: l.tasksSubtitle,
                                     icon: Icons.assignment_turned_in,
                                     onTap: () => _navigateToTasks(),
                                     color: Colors.green.shade600,
@@ -506,8 +538,8 @@ class _HomeScreenState extends State<HomeScreen>
                                   ),
                                   SizedBox(height: isSmallScreen ? 12 : 16),
                                   _buildMenuButton(
-                                    title: 'MINI PUBG',
-                                    subtitle: 'Dushmanlarni yo\'q qiling va coin oling',
+                                    title: l.miniPubg,
+                                    subtitle: l.miniPubgSubtitle,
                                     icon: Icons.military_tech,
                                     onTap: () => _navigateToMiniPubg(),
                                     color: Colors.red.shade700,
@@ -515,8 +547,8 @@ class _HomeScreenState extends State<HomeScreen>
                                   ),
                                   SizedBox(height: isSmallScreen ? 12 : 16),
                                   _buildMenuButton(
-                                    title: 'REYTING',
-                                    subtitle: 'Top o\'yinchilar reytingi',
+                                    title: l.leaderboard,
+                                    subtitle: l.leaderboardSubtitle,
                                     icon: Icons.leaderboard,
                                     onTap: () => _navigateToLeaderboard(),
                                     color: Colors.purple.shade600,
@@ -524,8 +556,8 @@ class _HomeScreenState extends State<HomeScreen>
                                   ),
                                   SizedBox(height: isSmallScreen ? 12 : 16),
                                   _buildMenuButton(
-                                    title: 'STATISTIKA',
-                                    subtitle: 'Natijalaringizni ko\'ring',
+                                    title: l.statistics,
+                                    subtitle: l.statisticsSubtitle,
                                     icon: Icons.bar_chart,
                                     onTap: () => _navigateToStats(),
                                     color: AppColors.info,
@@ -533,8 +565,8 @@ class _HomeScreenState extends State<HomeScreen>
                                   ),
                                   SizedBox(height: isSmallScreen ? 12 : 16),
                                   _buildMenuButton(
-                                    title: 'SOZLAMALAR',
-                                    subtitle: 'O\'yin sozlamalari',
+                                    title: l.settings,
+                                    subtitle: l.settingsSubtitle,
                                     icon: Icons.settings,
                                     onTap: () => _showSettings(),
                                     color: AppColors.textSecondary,
@@ -543,8 +575,8 @@ class _HomeScreenState extends State<HomeScreen>
                                   if (_isAdmin) ...[
                                     SizedBox(height: isSmallScreen ? 12 : 16),
                                     _buildMenuButton(
-                                      title: 'ADMIN PANEL',
-                                      subtitle: 'Foydalanuvchilar va sozlamalar',
+                                      title: l.adminPanel,
+                                      subtitle: l.adminPanelSubtitle,
                                       icon: Icons.admin_panel_settings,
                                       onTap: () => _navigateToAdmin(),
                                       color: Colors.red.shade600,
@@ -700,7 +732,7 @@ class _HomeScreenState extends State<HomeScreen>
         MaterialPageRoute(
           builder: (context) => const DifficultySelectionScreen(),
         ),
-      ).then((_) => _loadData());
+      );
     });
   }
 
@@ -718,7 +750,7 @@ class _HomeScreenState extends State<HomeScreen>
         MaterialPageRoute(
           builder: (context) => TasksScreen(onUpdate: _loadData),
         ),
-      ).then((_) => _loadData());
+      );
     });
   }
 
@@ -738,7 +770,7 @@ class _HomeScreenState extends State<HomeScreen>
         MaterialPageRoute(
           builder: (context) => MiniPubgGameScreen(onUpdate: _loadData),
         ),
-      ).then((_) => _loadData());
+      );
     });
   }
 
@@ -749,6 +781,13 @@ class _HomeScreenState extends State<HomeScreen>
         MaterialPageRoute(builder: (context) => const StatsScreen()),
       );
     });
+  }
+
+  void _navigateToUCShop() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const UCShopScreen()),
+    ).then((_) => _loadData());
   }
 
   void _navigateToAdmin() {
@@ -763,6 +802,8 @@ class _HomeScreenState extends State<HomeScreen>
       navigation();
       return;
     }
+
+    final l = AppLocalizations.of(context)!;
 
     showDialog(
       context: context,
@@ -782,9 +823,9 @@ class _HomeScreenState extends State<HomeScreen>
                 valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Reklama yuklanmoqda...',
-                style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+              Text(
+                l.adLoading,
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
               ),
               const SizedBox(height: 20),
               ElevatedButton(
@@ -796,7 +837,7 @@ class _HomeScreenState extends State<HomeScreen>
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                 ),
-                child: const Text('O\'tkazib yuborish'),
+                child: Text(l.skipAd),
               ),
             ],
           ),
@@ -821,33 +862,312 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
+  Widget _buildAnnouncementsSection(bool isSmallScreen, AppLocalizations l) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              l.news,
+              style: TextStyle(
+                fontSize: isSmallScreen ? 16 : 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+                letterSpacing: 1,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${_announcements.length}',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontSize: isSmallScreen ? 11 : 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: isSmallScreen ? 10 : 12),
+        SizedBox(
+          height: isSmallScreen ? 160 : 180,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _announcements.length,
+            itemBuilder: (context, index) {
+              return _buildAnnouncementCard(
+                _announcements[index],
+                isSmallScreen,
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAnnouncementCard(AnnouncementModel announcement, bool isSmallScreen) {
+    final cardWidth = MediaQuery.of(context).size.width * 0.75;
+
+    Color cardColor;
+    IconData cardIcon;
+    switch (announcement.type) {
+      case 'youtube':
+        cardColor = Colors.red;
+        cardIcon = Icons.play_circle_fill;
+        break;
+      case 'promo':
+        cardColor = Colors.purple;
+        cardIcon = Icons.local_offer;
+        break;
+      case 'update':
+        cardColor = Colors.blue;
+        cardIcon = Icons.system_update;
+        break;
+      case 'image':
+        cardColor = Colors.orange;
+        cardIcon = Icons.image;
+        break;
+      case 'ucShop':
+        cardColor = Colors.teal;
+        cardIcon = Icons.shopping_cart;
+        break;
+      default: // news
+        cardColor = AppColors.primary;
+        cardIcon = Icons.newspaper;
+    }
+
+    return Container(
+      width: cardWidth,
+      margin: const EdgeInsets.only(right: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            cardColor.withOpacity(0.15),
+            cardColor.withOpacity(0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cardColor.withOpacity(0.3)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => _onAnnouncementTap(announcement),
+          child: Padding(
+            padding: EdgeInsets.all(isSmallScreen ? 14 : 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: cardColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(cardIcon, color: cardColor, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        announcement.title,
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: isSmallScreen ? 14 : 16,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                if (announcement.description != null &&
+                    announcement.description!.isNotEmpty) ...[
+                  SizedBox(height: isSmallScreen ? 8 : 10),
+                  Expanded(
+                    child: Text(
+                      announcement.description!,
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: isSmallScreen ? 12 : 13,
+                      ),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+                if (announcement.imageUrl != null &&
+                    announcement.imageUrl!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        announcement.imageUrl!,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+                ],
+                if (announcement.actionText != null &&
+                    announcement.actionText!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      announcement.actionText!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onAnnouncementTap(AnnouncementModel announcement) {
+    if (announcement.type == 'ucShop') {
+      _navigateToUCShop();
+      return;
+    }
+
+    if (announcement.type == 'youtube' && announcement.videoUrl != null) {
+      _launchUrl(announcement.videoUrl!);
+      return;
+    }
+
+    if (announcement.actionUrl != null && announcement.actionUrl!.isNotEmpty) {
+      _launchUrl(announcement.actionUrl!);
+      return;
+    }
+
+    // Show detail dialog for news/promo/image types
+    if (announcement.description != null || announcement.imageUrl != null) {
+      final l = AppLocalizations.of(context)!;
+      showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  announcement.title,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                if (announcement.imageUrl != null) ...[
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      announcement.imageUrl!,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  ),
+                ],
+                if (announcement.description != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    announcement.description!,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text(
+                      l.close,
+                      style: const TextStyle(color: AppColors.primary),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   Future<void> _signOut() async {
+    final l = AppLocalizations.of(context)!;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext dialogContext) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.logout, color: AppColors.danger),
-            SizedBox(width: 8),
-            Text('Chiqish', style: TextStyle(color: AppColors.textPrimary)),
+            const Icon(Icons.logout, color: AppColors.danger),
+            const SizedBox(width: 8),
+            Text(l.logout, style: const TextStyle(color: AppColors.textPrimary)),
           ],
         ),
-        content: const Text(
-          'Hisobdan chiqishni xohlaysizmi?',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+        content: Text(
+          l.logoutConfirm,
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 16),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Bekor qilish',
-                style: TextStyle(color: AppColors.textSecondary)),
+            child: Text(l.cancel,
+                style: const TextStyle(color: AppColors.textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Chiqish',
-                style: TextStyle(color: AppColors.danger)),
+            child: Text(l.logout,
+                style: const TextStyle(color: AppColors.danger)),
           ),
         ],
       ),
@@ -866,6 +1186,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _showSettings() {
+    final l = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (BuildContext dialogContext) => Dialog(
@@ -912,10 +1233,10 @@ class _HomeScreenState extends State<HomeScreen>
                       child: const Icon(Icons.settings, color: Colors.white, size: 28),
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'Sozlamalar',
-                        style: TextStyle(
+                        l.settingsTitle,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -981,7 +1302,7 @@ class _HomeScreenState extends State<HomeScreen>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      _user!.displayName ?? 'Foydalanuvchi',
+                                      _user!.displayName ?? l.user,
                                       style: const TextStyle(
                                         color: AppColors.textPrimary,
                                         fontWeight: FontWeight.bold,
@@ -1006,300 +1327,282 @@ class _HomeScreenState extends State<HomeScreen>
                         const SizedBox(height: 16),
                       ],
 
+                      // Language Selector
+                      Text(
+                        l.language,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            _buildLanguageOption(
+                              dialogContext,
+                              'uz',
+                              l.uzbek,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildLanguageOption(
+                              dialogContext,
+                              'ru',
+                              l.russian,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildLanguageOption(
+                              dialogContext,
+                              'en',
+                              l.english,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
                       // Statistics
-                      FutureBuilder<AppUser?>(
-                        future: _user != null
-                            ? _firestoreService.getUser(_user!.uid)
-                            : Future.value(null),
-                        builder: (context, userSnapshot) {
-                          if (!userSnapshot.hasData || userSnapshot.data == null) {
-                            return const Center(child: CircularProgressIndicator());
-                          }
-                          final appUser = userSnapshot.data!;
+                      if (_appUser != null) ...[
+                        Text(
+                          l.statsLabel,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
 
-                          return FutureBuilder<Map<String, dynamic>>(
-                            future: _firestoreService.getDailyStatus(_user!.uid),
-                            builder: (context, statusSnapshot) {
-                              final dailyStatus = statusSnapshot.data ?? {};
+                        // Stats Grid
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildSettingStat(
+                                icon: Icons.monetization_on,
+                                label: l.coins,
+                                value: '$_currentCoins',
+                                color: Colors.amber,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildSettingStat(
+                                icon: Icons.diamond,
+                                label: 'UC',
+                                value: '$_totalUC',
+                                color: AppColors.accent,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildSettingStat(
+                                icon: Icons.local_fire_department,
+                                label: l.streak,
+                                value: l.streakDays(_appUser!.loginStreak),
+                                color: Colors.orange,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildSettingStat(
+                                icon: Icons.emoji_events,
+                                label: l.total,
+                                value: '${_appUser!.totalCoinsEarned}',
+                                color: AppColors.success,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
 
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                        // Referral Code
+                        Text(
+                          l.referralCode,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Colors.green.withOpacity(0.1),
+                                Colors.teal.withOpacity(0.1),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.green.withOpacity(0.3)),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  // Statistics Header
-                                  const Text(
-                                    'Statistika',
-                                    style: TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
+                                  Text(
+                                    l.yourCode,
+                                    style: const TextStyle(
+                                      color: AppColors.textSecondary,
+                                      fontSize: 13,
                                     ),
                                   ),
-                                  const SizedBox(height: 12),
-
-                                  // Stats Grid
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: _buildSettingStat(
-                                          icon: Icons.monetization_on,
-                                          label: 'Coinlar',
-                                          value: '${appUser.coins}',
-                                          color: Colors.amber,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: _buildSettingStat(
-                                          icon: Icons.diamond,
-                                          label: 'UC',
-                                          value: '${appUser.totalUCExchanged}',
-                                          color: AppColors.accent,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: _buildSettingStat(
-                                          icon: Icons.local_fire_department,
-                                          label: 'Streak',
-                                          value: '${appUser.loginStreak} kun',
-                                          color: Colors.orange,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: _buildSettingStat(
-                                          icon: Icons.emoji_events,
-                                          label: 'Jami',
-                                          value: '${appUser.totalCoinsEarned}',
-                                          color: AppColors.success,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 16),
-
-                                  // Daily Activity
-                                  const Text(
-                                    'Bugungi Aktivlik',
-                                    style: TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
                                   Container(
-                                    padding: const EdgeInsets.all(16),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: AppColors.primary.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                                      color: Colors.green.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(6),
                                     ),
-                                    child: Column(
-                                      children: [
-                                        _buildProgressItem(
-                                          'Reklamalar',
-                                          dailyStatus['adsWatched'] ?? 0,
-                                          dailyStatus['maxAds'] ?? 10,
-                                          Colors.blue,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        _buildProgressItem(
-                                          'O\'yinlar',
-                                          dailyStatus['gamesPlayed'] ?? 0,
-                                          dailyStatus['maxGames'] ?? 20,
-                                          Colors.green,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-
-                                  // Referral Code
-                                  const Text(
-                                    'Taklif Kodi',
-                                    style: TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Colors.green.withOpacity(0.1),
-                                          Colors.teal.withOpacity(0.1),
-                                        ],
+                                    child: Text(
+                                      l.referralCount(_appUser!.referralCount),
+                                      style: const TextStyle(
+                                        color: Colors.green,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
                                       ),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: Colors.green.withOpacity(0.3)),
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            const Text(
-                                              'Sizning kodingiz:',
-                                              style: TextStyle(
-                                                color: AppColors.textSecondary,
-                                                fontSize: 13,
-                                              ),
-                                            ),
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 8,
-                                                vertical: 4,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.green.withOpacity(0.2),
-                                                borderRadius: BorderRadius.circular(6),
-                                              ),
-                                              child: Text(
-                                                '${appUser.referralCount} ta taklif',
-                                                style: const TextStyle(
-                                                  color: Colors.green,
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Container(
-                                                padding: const EdgeInsets.symmetric(
-                                                  horizontal: 16,
-                                                  vertical: 12,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: Colors.white.withOpacity(0.1),
-                                                  borderRadius: BorderRadius.circular(8),
-                                                ),
-                                                child: Text(
-                                                  appUser.referralCode,
-                                                  textAlign: TextAlign.center,
-                                                  style: const TextStyle(
-                                                    color: Colors.green,
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 24,
-                                                    letterSpacing: 4,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Material(
-                                              color: Colors.green,
-                                              borderRadius: BorderRadius.circular(8),
-                                              child: InkWell(
-                                                borderRadius: BorderRadius.circular(8),
-                                                onTap: () {
-                                                  Clipboard.setData(
-                                                    ClipboardData(text: appUser.referralCode),
-                                                  );
-                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                    SnackBar(
-                                                      content: const Text('Kod nusxalandi!'),
-                                                      duration: const Duration(seconds: 2),
-                                                      backgroundColor: Colors.green,
-                                                      behavior: SnackBarBehavior.floating,
-                                                    ),
-                                                  );
-                                                },
-                                                child: const Padding(
-                                                  padding: EdgeInsets.all(12),
-                                                  child: Icon(
-                                                    Icons.copy,
-                                                    color: Colors.white,
-                                                    size: 24,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-
-                                  // App Info
-                                  Container(
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.background,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: AppColors.textSecondary.withOpacity(0.2)),
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.all(8),
-                                              decoration: BoxDecoration(
-                                                color: AppColors.primary.withOpacity(0.1),
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: const Icon(
-                                                Icons.info_outline,
-                                                color: AppColors.primary,
-                                                size: 24,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            const Expanded(
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    'TDM Training',
-                                                    style: TextStyle(
-                                                      color: AppColors.textPrimary,
-                                                      fontWeight: FontWeight.bold,
-                                                      fontSize: 16,
-                                                    ),
-                                                  ),
-                                                  Text(
-                                                    'Versiya 2.0.0',
-                                                    style: TextStyle(
-                                                      color: AppColors.textSecondary,
-                                                      fontSize: 12,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 12),
-                                        const Text(
-                                          '© 2025 TDM Training. Barcha huquqlar himoyalangan.',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            color: AppColors.textSecondary,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      ],
                                     ),
                                   ),
                                 ],
-                              );
-                            },
-                          );
-                        },
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 12,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        _appUser!.referralCode,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          color: Colors.green,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 24,
+                                          letterSpacing: 4,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Material(
+                                    color: Colors.green,
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(8),
+                                      onTap: () {
+                                        Clipboard.setData(
+                                          ClipboardData(text: _appUser!.referralCode),
+                                        );
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(l.codeCopied),
+                                            duration: const Duration(seconds: 2),
+                                            backgroundColor: Colors.green,
+                                            behavior: SnackBarBehavior.floating,
+                                          ),
+                                        );
+                                      },
+                                      child: const Padding(
+                                        padding: EdgeInsets.all(12),
+                                        child: Icon(
+                                          Icons.copy,
+                                          color: Colors.white,
+                                          size: 24,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ] else
+                        const Center(child: CircularProgressIndicator()),
+
+                      // App Info
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.textSecondary.withOpacity(0.2)),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.info_outline,
+                                    color: AppColors.primary,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        l.appName,
+                                        style: const TextStyle(
+                                          color: AppColors.textPrimary,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      Text(
+                                        l.version,
+                                        style: const TextStyle(
+                                          color: AppColors.textSecondary,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              l.copyright,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -1328,7 +1631,7 @@ class _HomeScreenState extends State<HomeScreen>
                           _signOut();
                         },
                         icon: const Icon(Icons.logout, size: 18),
-                        label: const Text('Chiqish'),
+                        label: Text(l.logout),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.danger,
                           side: BorderSide(color: AppColors.danger.withOpacity(0.5)),
@@ -1343,6 +1646,52 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLanguageOption(
+    BuildContext dialogContext,
+    String langCode,
+    String label,
+  ) {
+    final currentLocale = Localizations.localeOf(context).languageCode;
+    final isSelected = currentLocale == langCode;
+
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () {
+            MyApp.setLocale(context, Locale(langCode));
+            Navigator.pop(dialogContext);
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppColors.primary.withOpacity(0.2)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isSelected
+                    ? AppColors.primary
+                    : AppColors.textSecondary.withOpacity(0.3),
+                width: isSelected ? 2 : 1,
+              ),
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 13,
+              ),
+            ),
           ),
         ),
       ),
@@ -1386,43 +1735,4 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildProgressItem(String label, int current, int max, Color color) {
-    final progress = max > 0 ? current / max : 0.0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-            ),
-            Text(
-              '$current/$max',
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: LinearProgressIndicator(
-            value: progress,
-            minHeight: 8,
-            backgroundColor: Colors.grey.withOpacity(0.2),
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-          ),
-        ),
-      ],
-    );
-  }
 }

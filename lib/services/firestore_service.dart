@@ -5,6 +5,8 @@ import '../models/app_user.dart';
 import '../models/task_model.dart';
 import '../models/exchange_model.dart';
 import '../models/task_completion_model.dart';
+import '../models/announcement_model.dart';
+import '../models/uc_order_model.dart';
 
 class FirestoreService {
   static final FirestoreService _instance = FirestoreService._internal();
@@ -15,17 +17,28 @@ class FirestoreService {
 
   // Constants
   static const int coinsPerAd = 5;
-  static const int maxDailyAds = 10;
-  static const int maxDailyGames = 20;
+  static const int maxDailyAds = 15;
+  static const int maxDailyReactionGames = 30;
+  static const int maxDailyMiniPubgGames = 20;
   static const int maxCoinsPerGame = 10;
 
+  // Cache
+  AppUser? _cachedUser;
+  String? _cachedUserId;
+  DateTime? _cacheTime;
+  static const Duration _cacheDuration = Duration(minutes: 3);
+  bool? _cachedIsAdmin;
+  String? _adminCacheUid;
+
   static const Map<int, int> ucExchangeRates = {
-    12000: 325,    // 325 UC
-    15000: 660,    // 660 UC
-    30000: 1200,   // 1200 UC
-    45000: 2500,   // 2500 UC
-    60000: 3000,   // 3000 UC
-    150000: 5000,  // 5000 UC
+    8500: 60,      // 10 UC
+    13000: 120,     // 20 UC
+    18000: 325,    // 325 UC
+    22000: 660,    // 660 UC    // 660 UC
+    40000: 1200,   // 1200 UC
+    60000: 2500,   // 2500 UC
+    80000: 3000,   // 3000 UC
+    160000: 5000,  // 5000 UC
   };
 
   String? get _currentUid => FirebaseAuth.instance.currentUser?.uid;
@@ -96,25 +109,29 @@ class FirestoreService {
     });
   }
 
-  Future<void> _checkAndResetDaily(String uid) async {
-    final docRef = _db.collection('users').doc(uid);
-    final doc = await docRef.get();
-    if (!doc.exists) return;
-
-    final data = doc.data()!;
+  /// Tranzaksiya ichida daily reset tekshiradi.
+  /// [data] - hozirgi snapshot ma'lumotlari
+  /// Qaytaradi: reset kerakmi yoki yo'q
+  bool _needsDailyReset(Map<String, dynamic> data) {
     final lastReset = (data['lastResetDate'] as Timestamp?)?.toDate();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
+    if (lastReset == null) return true;
+    return DateTime(lastReset.year, lastReset.month, lastReset.day)
+        .isBefore(today);
+  }
 
-    if (lastReset == null ||
-        DateTime(lastReset.year, lastReset.month, lastReset.day)
-            .isBefore(today)) {
-      await docRef.update({
-        'dailyAds': 0,
-        'dailyGames': 0,
-        'lastResetDate': Timestamp.fromDate(today),
-      });
-    }
+  /// Tranzaksiya ichida daily reset qiladi (agar kerak bo'lsa).
+  /// Bu eski _checkAndResetDaily o'rniga ishlatiladi.
+  Map<String, dynamic> _buildDailyResetFields() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return {
+      'dailyAds': 0,
+      'dailyReactionGames': 0,
+      'dailyMiniPubgGames': 0,
+      'lastResetDate': Timestamp.fromDate(today),
+    };
   }
 
   // ==================== COIN OPERATIONS ====================
@@ -122,7 +139,19 @@ class FirestoreService {
   Future<int> getCoins() async {
     if (_currentUid == null) return 0;
     try {
+      // Keshdan olish (3 daqiqa ichida)
+      if (_cachedUserId == _currentUid &&
+          _cachedUser != null &&
+          _cacheTime != null &&
+          DateTime.now().difference(_cacheTime!) < _cacheDuration) {
+        return _cachedUser!.coins;
+      }
       final user = await getUser(_currentUid!);
+      if (user != null) {
+        _cachedUser = user;
+        _cachedUserId = _currentUid;
+        _cacheTime = DateTime.now();
+      }
       return user?.coins ?? 0;
     } catch (e) {
       print('Error getting coins: $e');
@@ -164,14 +193,26 @@ class FirestoreService {
 
   Future<bool> addCoinsForAd(String uid) async {
     try {
-      await _checkAndResetDaily(uid);
-
       return await _db.runTransaction((transaction) async {
         final docRef = _db.collection('users').doc(uid);
         final snapshot = await transaction.get(docRef);
         if (!snapshot.exists) return false;
 
-        final dailyAds = snapshot.data()?['dailyAds'] ?? 0;
+        final data = snapshot.data()!;
+        final Map<String, dynamic> updates = {};
+
+        // Daily reset tranzaksiya ichida
+        if (_needsDailyReset(data)) {
+          updates.addAll(_buildDailyResetFields());
+          // Reset bo'lganda dailyAds = 0 hisoblanadi
+          updates['coins'] = FieldValue.increment(coinsPerAd);
+          updates['totalCoinsEarned'] = FieldValue.increment(coinsPerAd);
+          updates['dailyAds'] = 1; // 0 dan 1 ga
+          transaction.update(docRef, updates);
+          return true;
+        }
+
+        final dailyAds = data['dailyAds'] ?? 0;
         if (dailyAds >= maxDailyAds) return false;
 
         transaction.update(docRef, {
@@ -187,49 +228,109 @@ class FirestoreService {
     }
   }
 
-  Future<bool> addCoinsForGame(String uid, double accuracy) async {
+  /// O'yin natijasiga qarab coin qo'shish (accuracy 0-100 foiz)
+  Future<bool> addCoinsForGame(String uid, double accuracy, {bool isMiniPubg = false}) async {
     try {
-      await _checkAndResetDaily(uid);
-
       final coinsEarned =
           (accuracy / 10).round().clamp(0, maxCoinsPerGame);
-
-      return await _db.runTransaction((transaction) async {
-        final docRef = _db.collection('users').doc(uid);
-        final snapshot = await transaction.get(docRef);
-        if (!snapshot.exists) return false;
-
-        final dailyGames = snapshot.data()?['dailyGames'] ?? 0;
-        if (dailyGames >= maxDailyGames) return false;
-
-        transaction.update(docRef, {
-          'coins': FieldValue.increment(coinsEarned),
-          'totalCoinsEarned': FieldValue.increment(coinsEarned),
-          'dailyGames': FieldValue.increment(1),
-        });
-        return true;
-      });
+      return await addCoinsForGameDirect(uid, coinsEarned, isMiniPubg: isMiniPubg);
     } catch (e) {
       print('Error adding coins for game: $e');
       return false;
     }
   }
 
-  Future<Map<String, dynamic>> getDailyStatus(String uid) async {
+  /// To'g'ridan-to'g'ri coin miqdorini qo'shish
+  /// [isMiniPubg] = true bo'lsa Mini PUBG (20 limit), false bo'lsa Reaksiya (30 limit)
+  Future<bool> addCoinsForGameDirect(String uid, int coins, {bool isMiniPubg = false}) async {
     try {
-      await _checkAndResetDaily(uid);
-      final user = await getUser(uid);
-      if (user == null) return {};
+      final fieldName = isMiniPubg ? 'dailyMiniPubgGames' : 'dailyReactionGames';
+      final maxGames = isMiniPubg ? maxDailyMiniPubgGames : maxDailyReactionGames;
+
+      return await _db.runTransaction((transaction) async {
+        final docRef = _db.collection('users').doc(uid);
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) return false;
+
+        final data = snapshot.data()!;
+        final Map<String, dynamic> updates = {};
+
+        // Daily reset tranzaksiya ichida
+        if (_needsDailyReset(data)) {
+          updates.addAll(_buildDailyResetFields());
+          if (coins > 0) {
+            updates['coins'] = FieldValue.increment(coins);
+            updates['totalCoinsEarned'] = FieldValue.increment(coins);
+          }
+          updates[fieldName] = 1;
+          transaction.update(docRef, updates);
+          return true;
+        }
+
+        final dailyGames = data[fieldName] ?? 0;
+        if (dailyGames >= maxGames) return false;
+
+        final Map<String, dynamic> gameUpdates = {
+          fieldName: FieldValue.increment(1),
+        };
+        if (coins > 0) {
+          gameUpdates['coins'] = FieldValue.increment(coins);
+          gameUpdates['totalCoinsEarned'] = FieldValue.increment(coins);
+        }
+        transaction.update(docRef, gameUpdates);
+        return true;
+      });
+    } catch (e) {
+      print('Error adding coins for game direct: $e');
+      return false;
+    }
+  }
+
+  /// Daily status olish - 1 ta read bilan
+  /// [isMiniPubg] = true bo'lsa Mini PUBG statusi, false bo'lsa Reaksiya
+  Future<Map<String, dynamic>> getDailyStatus(String uid, {bool isMiniPubg = false}) async {
+    try {
+      final doc = await _db.collection('users').doc(uid).get();
+      if (!doc.exists) return {};
+
+      final data = doc.data()!;
+
+      int dailyAds;
+      int dailyReactionGames;
+      int dailyMiniPubgGames;
+
+      if (_needsDailyReset(data)) {
+        dailyAds = 0;
+        dailyReactionGames = 0;
+        dailyMiniPubgGames = 0;
+      } else {
+        dailyAds = data['dailyAds'] ?? 0;
+        dailyReactionGames = data['dailyReactionGames'] ?? 0;
+        dailyMiniPubgGames = data['dailyMiniPubgGames'] ?? 0;
+      }
+
+      // Keshni yangilash
+      _cachedUser = AppUser.fromFirestore(doc);
+      _cachedUserId = uid;
+      _cacheTime = DateTime.now();
+
+      final gamesPlayed = isMiniPubg ? dailyMiniPubgGames : dailyReactionGames;
+      final maxGames = isMiniPubg ? maxDailyMiniPubgGames : maxDailyReactionGames;
 
       return {
-        'adsWatched': user.dailyAds,
+        'adsWatched': dailyAds,
         'maxAds': maxDailyAds,
-        'canWatchAd': user.dailyAds < maxDailyAds,
-        'gamesPlayed': user.dailyGames,
-        'maxGames': maxDailyGames,
-        'canPlayGame': user.dailyGames < maxDailyGames,
-        'adsRemaining': maxDailyAds - user.dailyAds,
-        'gamesRemaining': maxDailyGames - user.dailyGames,
+        'canWatchAd': dailyAds < maxDailyAds,
+        'gamesPlayed': gamesPlayed,
+        'maxGames': maxGames,
+        'canPlayGame': gamesPlayed < maxGames,
+        'adsRemaining': maxDailyAds - dailyAds,
+        'gamesRemaining': maxGames - gamesPlayed,
+        // Har ikkala o'yin turi uchun
+        'reactionGamesPlayed': dailyReactionGames,
+        'miniPubgGamesPlayed': dailyMiniPubgGames,
+        'maxReactionGames': maxDailyReactionGames,
+        'maxMiniPubgGames': maxDailyMiniPubgGames,
       };
     } catch (e) {
       print('Error getting daily status: $e');
@@ -242,8 +343,9 @@ class FirestoreService {
     return status['canWatchAd'] ?? false;
   }
 
-  Future<bool> canPlayGame(String uid) async {
-    final status = await getDailyStatus(uid);
+  /// [isMiniPubg] = true bo'lsa Mini PUBG, false bo'lsa Reaksiya
+  Future<bool> canPlayGame(String uid, {bool isMiniPubg = false}) async {
+    final status = await getDailyStatus(uid, isMiniPubg: isMiniPubg);
     return status['canPlayGame'] ?? false;
   }
 
@@ -623,9 +725,15 @@ class FirestoreService {
   // ==================== ADMIN OPERATIONS ====================
 
   Future<bool> isAdmin(String uid) async {
+    // Keshdan olish
+    if (_adminCacheUid == uid && _cachedIsAdmin != null) {
+      return _cachedIsAdmin!;
+    }
     try {
       final user = await getUser(uid);
-      return user?.isAdmin ?? false;
+      _cachedIsAdmin = user?.isAdmin ?? false;
+      _adminCacheUid = uid;
+      return _cachedIsAdmin!;
     } catch (e) {
       return false;
     }
@@ -987,6 +1095,229 @@ class FirestoreService {
         'todayCompletions': 0,
         'todayUniqueUsers': 0,
       };
+    }
+  }
+
+  // ==================== ANNOUNCEMENTS ====================
+
+  /// Aktiv e'lonlarni olish (foydalanuvchilar uchun)
+  Future<List<AnnouncementModel>> getActiveAnnouncements() async {
+    try {
+      final snapshot = await _db
+          .collection('announcements')
+          .where('isActive', isEqualTo: true)
+          .orderBy('order')
+          .get();
+
+      return snapshot.docs
+          .map((doc) => AnnouncementModel.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      print('Error getting active announcements: $e');
+      return [];
+    }
+  }
+
+  /// Barcha e'lonlarni olish (admin uchun)
+  Future<List<AnnouncementModel>> getAllAnnouncements() async {
+    try {
+      final snapshot = await _db
+          .collection('announcements')
+          .orderBy('order')
+          .get();
+
+      return snapshot.docs
+          .map((doc) => AnnouncementModel.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      print('Error getting all announcements: $e');
+      return [];
+    }
+  }
+
+  /// E'lon yaratish
+  Future<String?> createAnnouncement(AnnouncementModel announcement) async {
+    try {
+      final docRef = await _db
+          .collection('announcements')
+          .add(announcement.toFirestore());
+      return docRef.id;
+    } catch (e) {
+      print('Error creating announcement: $e');
+      return null;
+    }
+  }
+
+  /// E'lonni yangilash
+  Future<void> updateAnnouncement(
+      String id, Map<String, dynamic> data) async {
+    try {
+      data['updatedAt'] = Timestamp.now();
+      await _db.collection('announcements').doc(id).update(data);
+    } catch (e) {
+      print('Error updating announcement: $e');
+    }
+  }
+
+  /// E'lonni o'chirish
+  Future<void> deleteAnnouncement(String id) async {
+    try {
+      await _db.collection('announcements').doc(id).delete();
+    } catch (e) {
+      print('Error deleting announcement: $e');
+    }
+  }
+
+  // ==================== UC ORDERS ====================
+
+  /// UC buyurtma yaratish
+  Future<String?> createUCOrder(UCOrderModel order) async {
+    try {
+      final docRef = await _db
+          .collection('uc_orders')
+          .add(order.toFirestore());
+      return docRef.id;
+    } catch (e) {
+      print('Error creating UC order: $e');
+      return null;
+    }
+  }
+
+  /// Foydalanuvchining UC buyurtmalari
+  Future<List<UCOrderModel>> getUserUCOrders(String uid) async {
+    try {
+      final snapshot = await _db
+          .collection('uc_orders')
+          .where('uid', isEqualTo: uid)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => UCOrderModel.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      print('Error getting user UC orders: $e');
+      return [];
+    }
+  }
+
+  /// Barcha kutilayotgan UC buyurtmalar (admin)
+  Future<List<UCOrderModel>> getAllUCOrders({String? statusFilter}) async {
+    try {
+      Query query = _db.collection('uc_orders');
+      if (statusFilter != null && statusFilter != 'all') {
+        query = query.where('status', isEqualTo: statusFilter);
+      }
+      final snapshot = await query
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      return snapshot.docs
+          .map((doc) => UCOrderModel.fromFirestore(doc as DocumentSnapshot<Map<String, dynamic>>))
+          .toList();
+    } catch (e) {
+      print('Error getting all UC orders: $e');
+      return [];
+    }
+  }
+
+  /// Chekni tasdiqlash (admin)
+  Future<void> confirmReceipt(String orderId, String adminUid) async {
+    try {
+      await _db.collection('uc_orders').doc(orderId).update({
+        'status': 'receipt_confirmed',
+        'receiptConfirmedAt': Timestamp.now(),
+        'receiptConfirmedBy': adminUid,
+      });
+    } catch (e) {
+      print('Error confirming receipt: $e');
+    }
+  }
+
+  /// Buyurtmani yakunlash (admin)
+  Future<void> completeUCOrder(String orderId, String adminUid) async {
+    try {
+      await _db.collection('uc_orders').doc(orderId).update({
+        'status': 'completed',
+        'completedAt': Timestamp.now(),
+        'completedBy': adminUid,
+      });
+    } catch (e) {
+      print('Error completing UC order: $e');
+    }
+  }
+
+  /// Buyurtmani rad etish (admin)
+  Future<void> rejectUCOrder(
+      String orderId, String adminUid, String note) async {
+    try {
+      await _db.collection('uc_orders').doc(orderId).update({
+        'status': 'rejected',
+        'adminNote': note,
+        'completedAt': Timestamp.now(),
+        'completedBy': adminUid,
+      });
+    } catch (e) {
+      print('Error rejecting UC order: $e');
+    }
+  }
+
+  // ==================== PROMO CODE ====================
+
+  /// Promo kodni tekshirish va ishlatish
+  /// Qaytaradi: {'success': bool, 'message': String, 'coins': int}
+  Future<Map<String, dynamic>> redeemPromoCode(String uid, String code) async {
+    try {
+      final codeDoc = await _db.collection('promo_codes').doc(code).get();
+
+      if (!codeDoc.exists) {
+        return {'success': false, 'message': 'invalid', 'coins': 0};
+      }
+
+      final data = codeDoc.data() as Map<String, dynamic>;
+
+      if (data['used'] == true) {
+        return {'success': false, 'message': 'already_used', 'coins': 0};
+      }
+
+      final coins = (data['coins'] as num?)?.toInt() ?? 5;
+
+      // Tranzaksiya bilan: kodni ishlatilgan deb belgilash + coin qo'shish
+      await _db.runTransaction((transaction) async {
+        final freshCodeDoc = await transaction.get(
+          _db.collection('promo_codes').doc(code),
+        );
+
+        if (!freshCodeDoc.exists) throw Exception('Code not found');
+
+        final freshData = freshCodeDoc.data() as Map<String, dynamic>;
+        if (freshData['used'] == true) throw Exception('Already used');
+
+        // Kodni ishlatilgan deb belgilash
+        transaction.update(_db.collection('promo_codes').doc(code), {
+          'used': true,
+          'used_by': uid,
+          'used_at': FieldValue.serverTimestamp(),
+        });
+
+        // Foydalanuvchiga coin qo'shish
+        final userRef = _db.collection('users').doc(uid);
+        transaction.update(userRef, {
+          'coins': FieldValue.increment(coins),
+        });
+      });
+
+      // Keshni tozalash
+      _cachedUser = null;
+      _cacheTime = null;
+
+      return {'success': true, 'message': 'success', 'coins': coins};
+    } catch (e) {
+      print('Promo code redeem error: $e');
+      if (e.toString().contains('Already used')) {
+        return {'success': false, 'message': 'already_used', 'coins': 0};
+      }
+      return {'success': false, 'message': 'error', 'coins': 0};
     }
   }
 }

@@ -1,6 +1,7 @@
 // lib/screens/no_connection_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/utils/app_colors.dart';
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 
 class NoInternetScreen extends StatelessWidget {
   final VoidCallback onRetry;
@@ -9,6 +10,7 @@ class NoInternetScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Center(
@@ -19,9 +21,9 @@ class NoInternetScreen extends StatelessWidget {
             children: [
               const Icon(Icons.wifi_off, size: 80, color: Colors.red),
               const SizedBox(height: 20),
-              const Text(
-                'Internetga ulanmagansiz!',
-                style: TextStyle(
+              Text(
+                l.noInternet,
+                style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -29,15 +31,15 @@ class NoInternetScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
-              const Text(
-                'Iltimos, internetga ulanib qayta urinib ko‘ring.',
-                style: TextStyle(color: Colors.white70),
+              Text(
+                l.noInternetDesc,
+                style: const TextStyle(color: Colors.white70),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: onRetry,
-                child: const Text('Qayta urinish'),
+                child: Text(l.retry),
               ),
             ],
           ),

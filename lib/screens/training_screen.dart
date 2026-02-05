@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_application_1/models/difficulty.dart';
 import 'package:flutter_application_1/services/firestore_service.dart';
 import 'package:flutter_application_1/services/admob_service.dart';
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:math';
 import '../utils/app_colors.dart';
@@ -52,7 +52,7 @@ class _TrainingScreenState extends State<TrainingScreen>
   final Random _random = Random();
   final int _coinsEarned = 1;
   bool _canPlayGame = true;
-  bool _isShowingAd = false;
+  bool _isWaitingToStart = true;
   int _currentMatch = 1;
   int _totalMatches = 0;
   int _timeLeft = 0;
@@ -60,25 +60,11 @@ class _TrainingScreenState extends State<TrainingScreen>
   // Ko'p nishonlar uchun
   final List<TargetInfo> _targets = [];
 
-  // Reklama vaqti uchun
-  static const int AD_COOLDOWN_MINUTES = 1;
-
   @override
   void initState() {
     super.initState();
-    _initializeAdMob();
     _initializeAnimations();
     _checkGamePermission();
-  }
-
-  Future<void> _initializeAdMob() async {
-    try {
-      await AdMobService.initialize();
-      AdMobService.loadInterstitialAd();
-      print('AdMob initialized in TrainingScreen');
-    } catch (e) {
-      print('AdMob initialization failed in TrainingScreen: $e');
-    }
   }
 
   void _initializeAnimations() {
@@ -130,35 +116,20 @@ class _TrainingScreenState extends State<TrainingScreen>
     super.dispose();
   }
 
-  Future<bool> _shouldShowAd() async {
-    final prefs = await SharedPreferences.getInstance();
-    final lastAdTime = prefs.getInt('last_ad_time') ?? 0;
-    final currentTime = DateTime.now().millisecondsSinceEpoch;
-    final timeDifference = currentTime - lastAdTime;
-    final cooldownMillis = AD_COOLDOWN_MINUTES * 60 * 1000;
-
-    return timeDifference >= cooldownMillis;
-  }
-
-  Future<void> _saveAdTime() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('last_ad_time', DateTime.now().millisecondsSinceEpoch);
-  }
-
   Future<void> _checkGamePermission() async {
-    final canPlay = _uid != null ? await _firestoreService.canPlayGame(_uid!) : false;
+    final canPlay = _uid != null ? await _firestoreService.canPlayGame(_uid!, isMiniPubg: false) : false;
     setState(() {
       _canPlayGame = canPlay;
+      _isWaitingToStart = canPlay;
     });
 
-    if (canPlay) {
-      _startGame();
-    } else {
+    if (!canPlay) {
       _showGameLimitDialog();
     }
   }
 
   void _showGameLimitDialog() {
+    final l = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -169,18 +140,18 @@ class _TrainingScreenState extends State<TrainingScreen>
           children: [
             Icon(Icons.warning, color: AppColors.danger, size: 28),
             const SizedBox(width: 12),
-            const Text(
-              'Kunlik Limit',
-              style: TextStyle(color: AppColors.textPrimary),
+            Text(
+              l.dailyLimit,
+              style: const TextStyle(color: AppColors.textPrimary),
             ),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Bugun maksimal o\'yin soniga yetdingiz!',
-              style: TextStyle(color: AppColors.textPrimary),
+            Text(
+              l.dailyLimitReached,
+              style: const TextStyle(color: AppColors.textPrimary),
             ),
             const SizedBox(height: 16),
             Container(
@@ -195,16 +166,16 @@ class _TrainingScreenState extends State<TrainingScreen>
                   Icon(Icons.info_outline, color: AppColors.info, size: 32),
                   const SizedBox(height: 8),
                   Text(
-                    'Kuniga ${FirestoreService.maxDailyGames} marta o\'ynash mumkin',
+                    l.dailyGameLimitInfo(FirestoreService.maxDailyReactionGames),
                     style: const TextStyle(
                       color: AppColors.textSecondary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Ertaga qayta urinib ko\'ring!',
-                    style: TextStyle(color: AppColors.textSecondary),
+                  Text(
+                    l.tryAgainTomorrow,
+                    style: const TextStyle(color: AppColors.textSecondary),
                   ),
                 ],
               ),
@@ -220,7 +191,7 @@ class _TrainingScreenState extends State<TrainingScreen>
               ); // Training Screen - darajalar sahifasiga qaytadi
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            child: const Text('OK'),
+            child: Text(l.ok),
           ),
         ],
       ),
@@ -396,13 +367,13 @@ class _TrainingScreenState extends State<TrainingScreen>
   int _getDifficultyDuration() {
     switch (widget.difficulty.name.toLowerCase()) {
       case 'easy':
-        return 52; // 30 + 22 sekund
+        return 52;
       case 'medium':
-        return 67; // 45 + 22 sekund
+        return 67;
       case 'hard':
-        return 82; // 60 + 22 sekund
+        return 82;
       case 'expert':
-        return 112; // 90 + 22 sekund
+        return 112;
       default:
         return 52;
     }
@@ -441,13 +412,13 @@ class _TrainingScreenState extends State<TrainingScreen>
   int _getTargetCount() {
     switch (widget.difficulty.name.toLowerCase()) {
       case 'easy':
-        return 2; // 1 dan 2 ga oshirildi
+        return 2;
       case 'medium':
-        return 4; // 2 dan 4 ga oshirildi
+        return 4;
       case 'hard':
-        return 6; // 3 dan 6 ga oshirildi
+        return 6;
       case 'expert':
-        return 0; // Flappy Bird rejimi
+        return 0;
       default:
         return 2;
     }
@@ -478,7 +449,7 @@ class _TrainingScreenState extends State<TrainingScreen>
       final screenWidth = size.width;
       final screenHeight = size.height;
 
-      const margin = 60.0; // Margin kichraytirildi
+      const margin = 60.0;
       final targetSize = _getDifficultyTargetSize();
       const topMargin = 100.0;
       const bottomMargin = 120.0;
@@ -511,7 +482,7 @@ class _TrainingScreenState extends State<TrainingScreen>
   }
 
   bool _isPositionTooClose(Offset newPosition, double targetSize) {
-    const minDistance = 80.0; // Minimal masofa kamaytirildi
+    const minDistance = 80.0;
     for (var target in _targets) {
       final distance = (newPosition - target.position).distance;
       if (distance < minDistance) {
@@ -615,6 +586,21 @@ class _TrainingScreenState extends State<TrainingScreen>
     }
   }
 
+  String _getDifficultyName(AppLocalizations l) {
+    switch (widget.difficulty.name.toLowerCase()) {
+      case 'easy':
+        return l.diffEasy;
+      case 'medium':
+        return l.diffMedium;
+      case 'hard':
+        return l.diffHard;
+      case 'expert':
+        return l.diffExpert;
+      default:
+        return widget.difficulty.name.toUpperCase();
+    }
+  }
+
   void _endGame() {
     if (!mounted) return;
 
@@ -628,10 +614,6 @@ class _TrainingScreenState extends State<TrainingScreen>
     _multiTargetTimer?.cancel();
     _pipeTimer?.cancel();
 
-    final accuracy = _gameState.totalShots > 0
-        ? (_gameState.hits / _gameState.totalShots) * 100
-        : 0.0;
-
     _scoreService.saveScore(
       _gameState.score,
       _gameState.hits,
@@ -639,52 +621,116 @@ class _TrainingScreenState extends State<TrainingScreen>
       difficulty: widget.difficulty,
     );
 
-    if (_uid != null) _firestoreService.addCoins(_uid!, 1);
+    // Reaksiya o'yini uchun 1 coin qo'shish
+    if (_uid != null) {
+      _firestoreService.addCoinsForGameDirect(_uid!, 1, isMiniPubg: false);
+    }
     _totalMatches++;
 
     _coinAnimationController.forward();
 
-    // Reklama ko'rsatish yoki yo'q degan qaror
-    _handleGameEnd();
+    _showGameOverDialog();
   }
 
-  Future<void> _handleGameEnd() async {
-    final shouldShow = await _shouldShowAd();
+  /// Keyingi match uchun majburiy reklama ko'rsatib, keyin o'yinni boshlash
+  Future<void> _showAdThenStartNextGame() async {
+    final canPlay = _uid != null
+        ? await _firestoreService.canPlayGame(_uid!, isMiniPubg: false)
+        : false;
 
-    if (shouldShow) {
-      await _showInterstitialAdAndDialog();
-    } else {
-      _showGameOverDialog();
+    if (!canPlay) {
+      _showGameLimitDialog();
+      return;
     }
-  }
 
-  Future<void> _showInterstitialAdAndDialog() async {
-    if (_isShowingAd) return;
-
-    setState(() {
-      _isShowingAd = true;
-    });
+    // Loading dialog
+    if (!mounted) return;
+    final l = AppLocalizations.of(context)!;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                l.gamePreparingLoading,
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
 
     try {
       if (AdMobService.isInterstitialAdReady) {
         await AdMobService.showInterstitialAd();
-        await _saveAdTime(); // Reklama vaqtini saqlash
-        print('Interstitial ad shown successfully');
+        if (mounted) {
+          Navigator.pop(context); // Loading dialogni yopish
+          setState(() {
+            _currentMatch++;
+            _isWaitingToStart = true;
+          });
+        }
+      } else {
+        AdMobService.loadInterstitialAd();
+        await Future.delayed(const Duration(seconds: 3));
+
+        if (!mounted) return;
+
+        if (AdMobService.isInterstitialAdReady) {
+          await AdMobService.showInterstitialAd();
+          if (mounted) {
+            Navigator.pop(context);
+            setState(() {
+              _currentMatch++;
+              _isWaitingToStart = true;
+            });
+          }
+        } else {
+          Navigator.pop(context);
+          if (mounted) {
+            final l2 = AppLocalizations.of(context)!;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(l2.adFailedRetry),
+                backgroundColor: Colors.orange,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        }
       }
     } catch (e) {
-      print('Error showing interstitial ad: $e');
-    } finally {
-      AdMobService.loadInterstitialAd();
       if (mounted) {
-        setState(() {
-          _isShowingAd = false;
-        });
-        _showGameOverDialog();
+        Navigator.pop(context);
+        final l2 = AppLocalizations.of(context)!;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l2.adFailedRetry),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
       }
     }
   }
 
   void _showGameOverDialog() {
+    final l = AppLocalizations.of(context)!;
     final accuracy = _gameState.totalShots > 0
         ? ((_gameState.hits / _gameState.totalShots) * 100).toStringAsFixed(1)
         : '0.0';
@@ -711,7 +757,7 @@ class _TrainingScreenState extends State<TrainingScreen>
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Match $_currentMatch Tugadi!',
+                  l.matchFinishedTitle(_currentMatch),
                   style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 22,
@@ -750,7 +796,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        '+1 Coin oldingiez!',
+                        l.coinEarnedGame,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -773,29 +819,29 @@ class _TrainingScreenState extends State<TrainingScreen>
                   child: Column(
                     children: [
                       _buildStatRow(
-                        'Ball:',
+                        l.score,
                         '${_gameState.score}',
                         AppColors.accent,
                       ),
                       if (!_isFlappyBirdMode) ...[
                         _buildStatRow(
-                          'Aniqlik:',
+                          l.accuracy,
                           '$accuracy%',
                           AppColors.success,
                         ),
                         _buildStatRow(
-                          'O\'rtacha vaqt:',
+                          l.averageTimeLabel,
                           '${avgReactionTime}ms',
                           AppColors.info,
                         ),
                       ],
                       _buildStatRow(
-                        _isFlappyBirdMode ? 'O\'tganlar:' : 'Tegganlar:',
+                        _isFlappyBirdMode ? l.passedLabel : l.hitsLabel,
                         '${_gameState.hits}',
                         AppColors.success,
                       ),
                       _buildStatRow(
-                        _isFlappyBirdMode ? 'Urilganlar:' : 'O\'tkaziganlar:',
+                        _isFlappyBirdMode ? l.crashedLabel : l.missesLabel,
                         '${_gameState.misses}',
                         AppColors.danger,
                       ),
@@ -804,12 +850,13 @@ class _TrainingScreenState extends State<TrainingScreen>
                 ),
                 const SizedBox(height: 16),
                 FutureBuilder<Map<String, dynamic>?>(
-                  future: _uid != null ? _firestoreService.getDailyStatus(_uid!) : Future.value(null),
+                  future: _uid != null ? _firestoreService.getDailyStatus(_uid!, isMiniPubg: false) : Future.value(null),
                   builder: (context, snapshot) {
                     if (snapshot.hasData && snapshot.data != null) {
                       final status = snapshot.data!;
                       final remaining =
                           status['maxGames'] - status['gamesPlayed'];
+                      final l2 = AppLocalizations.of(context)!;
                       return Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
@@ -829,7 +876,7 @@ class _TrainingScreenState extends State<TrainingScreen>
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'Bugun yana $remaining match o\'ynash mumkin',
+                                l2.remainingMatchesInfo(remaining),
                                 style: const TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 12,
@@ -858,23 +905,15 @@ class _TrainingScreenState extends State<TrainingScreen>
                 Icons.arrow_back,
                 color: AppColors.textSecondary,
               ),
-              label: const Text(
-                'Darajalar',
-                style: TextStyle(color: AppColors.textSecondary),
+              label: Text(
+                l.backToLevels,
+                style: const TextStyle(color: AppColors.textSecondary),
               ),
             ),
             ElevatedButton.icon(
-              onPressed: () async {
+              onPressed: () {
                 Navigator.pop(context);
-                final canPlay = _uid != null ? await _firestoreService.canPlayGame(_uid!) : false;
-                if (canPlay) {
-                  setState(() {
-                    _currentMatch++;
-                  });
-                  _startGame();
-                } else {
-                  _showGameLimitDialog();
-                }
+                _showAdThenStartNextGame();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
@@ -884,9 +923,9 @@ class _TrainingScreenState extends State<TrainingScreen>
                 ),
               ),
               icon: const Icon(Icons.play_arrow, color: Colors.white),
-              label: const Text(
-                'Keyingi Match',
-                style: TextStyle(
+              label: Text(
+                l.nextMatch,
+                style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
@@ -927,6 +966,7 @@ class _TrainingScreenState extends State<TrainingScreen>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final l = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -935,13 +975,12 @@ class _TrainingScreenState extends State<TrainingScreen>
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-          onPressed: () =>
-              Navigator.pop(context), // Darajalar sahifasiga qaytadi
+          onPressed: () => Navigator.pop(context),
         ),
         title: Column(
           children: [
             Text(
-              widget.difficulty.name.toUpperCase(),
+              _getDifficultyName(l),
               style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
@@ -950,8 +989,8 @@ class _TrainingScreenState extends State<TrainingScreen>
             ),
             Text(
               _isFlappyBirdMode
-                  ? 'Flappy Mode - Match $_currentMatch'
-                  : 'Match $_currentMatch',
+                  ? l.flappyModeMatch(_currentMatch)
+                  : l.matchLabel(_currentMatch),
               style: const TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 12,
@@ -996,7 +1035,9 @@ class _TrainingScreenState extends State<TrainingScreen>
           ),
         ],
       ),
-      body: GestureDetector(
+      body: _isWaitingToStart && _canPlayGame
+          ? _buildStartScreen(l)
+          : GestureDetector(
         onTap: _isFlappyBirdMode ? _jump : null,
         child: Stack(
           children: [
@@ -1208,18 +1249,18 @@ class _TrainingScreenState extends State<TrainingScreen>
                               size: 48,
                             ),
                             const SizedBox(height: 8),
-                            const Text(
-                              'Tap to Jump!',
-                              style: TextStyle(
+                            Text(
+                              l.tapToJump,
+                              style: const TextStyle(
                                 color: AppColors.textPrimary,
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             const SizedBox(height: 4),
-                            const Text(
-                              'Pipe\'lardan o\'tib boring',
-                              style: TextStyle(
+                            Text(
+                              l.passThroughPipes,
+                              style: const TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 14,
                               ),
@@ -1300,6 +1341,185 @@ class _TrainingScreenState extends State<TrainingScreen>
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildStartScreen(AppLocalizations l) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            AppColors.background,
+            AppColors.primary.withOpacity(0.1),
+            AppColors.background,
+          ],
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Daraja nomi
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: AppColors.primary.withOpacity(0.3),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    _getDifficultyName(l),
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    l.matchLabel(_currentMatch),
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 40),
+
+            // START tugmasi
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                setState(() {
+                  _isWaitingToStart = false;
+                });
+                _startGame();
+              },
+              child: AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _pulseAnimation.value,
+                    child: Container(
+                      width: 160,
+                      height: 160,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [AppColors.primary, AppColors.accent],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.5),
+                            blurRadius: 30,
+                            spreadRadius: 10,
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.play_arrow_rounded,
+                              color: Colors.white,
+                              size: 64,
+                            ),
+                            Text(
+                              l.startGame,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 40),
+
+            // Qisqacha ma'lumot
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 40),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.primary.withOpacity(0.2),
+                ),
+              ),
+              child: Column(
+                children: [
+                  _buildStartInfoRow(
+                    Icons.timer,
+                    l.timeLabel,
+                    '${_getDifficultyDuration()}s',
+                  ),
+                  const SizedBox(height: 8),
+                  _buildStartInfoRow(
+                    Icons.gps_fixed,
+                    l.targetsLabel,
+                    _getDifficultyTargetSize() <= 40 ? l.targetSmall : l.targetLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  _buildStartInfoRow(
+                    Icons.monetization_on,
+                    l.rewardLabel,
+                    l.rewardCoins(1),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStartInfoRow(IconData icon, String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Icon(icon, color: AppColors.textSecondary, size: 18),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
     );
   }
 

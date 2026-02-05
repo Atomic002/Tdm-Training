@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:math';
 import '../utils/app_colors.dart';
 import '../services/firestore_service.dart';
+import '../services/admob_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class MiniPubgGameScreen extends StatefulWidget {
@@ -100,8 +101,8 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen>
     }
   }
 
-  static const int maxDailyGames = 15;
-  static const int maxCoinsPerGame = 3;
+  static const int maxDailyGames = 20;
+  static const int maxCoinsPerGame = 5;
 
   @override
   void initState() {
@@ -130,7 +131,7 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen>
     if (_uid == null) return;
     setState(() => _isLoadingGames = true);
     try {
-      final status = await _firestoreService.getDailyStatus(_uid!);
+      final status = await _firestoreService.getDailyStatus(_uid!, isMiniPubg: true);
       final gamesPlayed = status['gamesPlayed'] ?? 0;
       if (mounted) {
         setState(() {
@@ -512,43 +513,121 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen>
     _saveScore();
   }
 
+  /// O'yin boshlanishidan oldin majburiy reklama ko'rsatish
+  /// Reklama ko'rsatilmasa o'yin boshlanmaydi
+  Future<void> _showAdThenStartGame() async {
+    if (_gamesPlayedToday >= maxDailyGames) {
+      _showLimitReachedDialog();
+      return;
+    }
+
+    // Loading dialog ko'rsatish
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'O\'yin tayyorlanmoqda...',
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      if (AdMobService.isInterstitialAdReady) {
+        await AdMobService.showInterstitialAd();
+        if (mounted) {
+          Navigator.pop(context); // Loading dialogni yopish
+          setState(() => _gameState = GameState.readyToStart);
+        }
+      } else {
+        // Reklama tayyor emas - yuklanishini kutish
+        AdMobService.loadInterstitialAd();
+        await Future.delayed(const Duration(seconds: 3));
+
+        if (!mounted) return;
+
+        if (AdMobService.isInterstitialAdReady) {
+          await AdMobService.showInterstitialAd();
+          if (mounted) {
+            Navigator.pop(context);
+            setState(() => _gameState = GameState.readyToStart);
+          }
+        } else {
+          // Reklama yuklanmadi
+          Navigator.pop(context);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Reklama yuklanmadi. Qayta urinib ko\'ring.'),
+                backgroundColor: Colors.orange,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Reklama ko\'rsatishda xatolik: $e');
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Reklama yuklanmadi. Qayta urinib ko\'ring.'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _saveScore() async {
     if (_uid == null) return;
 
     try {
       final int coins = _calculateCoins();
 
-      if (coins > 0) {
-        await _firestoreService.addCoinsForGame(_uid!, coins.toDouble());
+      // addCoinsForGameDirect - to'g'ridan-to'g'ri coin qo'shadi
+      final success = await _firestoreService.addCoinsForGameDirect(_uid!, coins, isMiniPubg: true);
+      if (success) {
         widget.onUpdate();
       }
 
-      setState(() {
-        _gamesPlayedToday++;
-      });
+      if (mounted) {
+        setState(() {
+          _gamesPlayedToday++;
+        });
+      }
     } catch (e) {
       debugPrint('Coin saqlashda xato: $e');
     }
   }
 
   int _calculateCoins() {
-    // Performance based: 1-3 coins
-    int coinsFromScore = 1;
-    if (_score >= 200) {
-      coinsFromScore = 3;
-    } else if (_score >= 100) {
-      coinsFromScore = 2;
+    // 10 ta dushman o'ldirmasa = 0 coin, 10+ = 1 coin
+    if (_enemiesKilled >= 10) {
+      return 1;
     }
-
-    int coinsFromEnemies = 1;
-    if (_enemiesKilled >= 20) {
-      coinsFromEnemies = 3;
-    } else if (_enemiesKilled >= 10) {
-      coinsFromEnemies = 2;
-    }
-
-    final coins = coinsFromScore > coinsFromEnemies ? coinsFromScore : coinsFromEnemies;
-    return coins > maxCoinsPerGame ? maxCoinsPerGame : coins;
+    return 0;
   }
 
   void _showLimitReachedDialog() {
@@ -595,9 +674,223 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen>
       body: SafeArea(
         child: _gameState == GameState.menu
             ? _buildMenu()
-            : _gameState == GameState.playing
-                ? _buildGame()
-                : _buildGameOver(),
+            : _gameState == GameState.readyToStart
+                ? _buildReadyToStart()
+                : _gameState == GameState.playing
+                    ? _buildGame()
+                    : _buildGameOver(),
+      ),
+    );
+  }
+
+  Widget _buildReadyToStart() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            AppColors.background,
+            AppColors.primary.withValues(alpha: 0.15),
+            AppColors.background,
+          ],
+        ),
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Daraja ko'rsatgich
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: (_difficulty['color'] as Color).withValues(alpha: 0.5),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.sports_esports,
+                    color: _difficulty['color'] as Color,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    _difficulty['name'] as String,
+                    style: TextStyle(
+                      color: _difficulty['color'] as Color,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 50),
+
+            // START tugmasi
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                _startGame();
+              },
+              child: AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _pulseAnimation.value,
+                    child: Container(
+                      width: 160,
+                      height: 160,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            AppColors.primary,
+                            AppColors.accent,
+                          ],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.5),
+                            blurRadius: 30,
+                            spreadRadius: 10,
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.play_arrow_rounded,
+                              color: Colors.white,
+                              size: 64,
+                            ),
+                            Text(
+                              'START',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 50),
+
+            // Qisqa ma'lumot
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 40),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.favorite, color: Colors.red, size: 18),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Jonlar:',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Text(
+                        '3',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.monetization_on, color: Colors.amber, size: 18),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Mukofot:',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Text(
+                        '10+ kill = 1 Coin',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.gamepad, color: Colors.green, size: 18),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Qolgan:',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        '${maxDailyGames - _gamesPlayedToday} o\'yin',
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -901,7 +1194,7 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen>
       onTap: () {
         HapticFeedback.selectionClick();
         setState(() => _currentLevel = level);
-        _startGame();
+        _showAdThenStartGame();
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
@@ -1669,7 +1962,7 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen>
                   Expanded(
                     flex: 2,
                     child: ElevatedButton.icon(
-                      onPressed: _startGame,
+                      onPressed: _showAdThenStartGame,
                       icon: const Icon(Icons.refresh),
                       label: const Text('YANA O\'YNASH'),
                       style: ElevatedButton.styleFrom(
@@ -1724,7 +2017,7 @@ class _MiniPubgGameScreenState extends State<MiniPubgGameScreen>
 // Game classes
 enum GameLevel { easy, medium, hard }
 
-enum GameState { menu, playing, gameOver }
+enum GameState { menu, readyToStart, playing, gameOver }
 
 enum EnemyType { normal, fast, tank }
 

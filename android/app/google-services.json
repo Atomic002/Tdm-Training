@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "697555897090-goulbvj06l6hqmj1ogadr7urhr74tdg3.apps.googleusercontent.com",
+          "client_id": "697555897090-gbhqsbdk8rtheornouo4g104g2crbma6.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.rahmatullo.tdm_training",
-            "certificate_hash": "9c32bc46bd8f603b7ca20e7f9ea8fc24ffa99018"
+            "certificate_hash": "fd0bb4032ae3cf8b10be40981daba27294c25847"
           }
         },
         {

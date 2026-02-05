@@ -6,6 +6,7 @@ import '../models/exchange_model.dart';
 import '../utils/app_colors.dart';
 import '../widgets/ad_banner.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import 'dart:async';
 
 class CoinScreen extends StatefulWidget {
@@ -42,20 +43,8 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _initializeAdMob();
     _initializeAnimations();
     _loadData();
-  }
-
-  Future<void> _initializeAdMob() async {
-    try {
-      await AdMobService.initialize();
-      print('AdMob initialized in CoinScreen');
-    } catch (e) {
-      if (mounted) {
-        _showErrorSnackBar('AdMob initialization failed: $e');
-      }
-    }
   }
 
   void _initializeAnimations() {
@@ -108,7 +97,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
   void _startAdCooldown() {
     setState(() {
       _canWatchAd = false;
-      _adCooldownSeconds = 20;
+      _adCooldownSeconds = 180;
     });
 
     _adCooldownTimer?.cancel();
@@ -172,29 +161,31 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
           _history = [];
           _isLoading = false;
         });
-        _showErrorSnackBar('Ma\'lumotlarni yuklashda xatolik yuz berdi: $e');
+        final l = AppLocalizations.of(context);
+        _showErrorSnackBar(l?.dataLoadError ?? 'Error loading data');
       }
     }
   }
 
   Future<void> _watchAdForCoins() async {
+    final l = AppLocalizations.of(context)!;
     if (!mounted ||
         _uid == null ||
         _isWatchingAd ||
         !(_dailyStatus['canWatchAd'] ?? false) ||
         !_canWatchAd) {
       if (_isWatchingAd) {
-        _showErrorSnackBar('Reklama allaqachon yuklanmoqda');
+        _showErrorSnackBar(l.adAlreadyLoading);
       } else if (!(_dailyStatus['canWatchAd'] ?? false)) {
-        _showErrorSnackBar('Bugun reklamalar limitiga yetdingiz');
+        _showErrorSnackBar(l.adLimitReachedToday);
       } else if (!_canWatchAd) {
-        _showErrorSnackBar('Iltimos $_adCooldownSeconds soniya kuting');
+        _showErrorSnackBar(l.pleaseWait('${_adCooldownSeconds ~/ 60}:${(_adCooldownSeconds % 60).toString().padLeft(2, '0')}'));
       }
       return;
     }
 
     setState(() => _isWatchingAd = true);
-    _showLoadingDialog('Reklama yuklanmoqda...');
+    _showLoadingDialog(l.adLoading);
 
     try {
       final success = await AdMobService.showRewardedAd(
@@ -205,17 +196,20 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
             if (added) {
               _animateCoinGain();
               _animateReward();
-              _showSuccessSnackBar('${FirestoreService.coinsPerAd} coin qo\'shildi!');
+              final l2 = AppLocalizations.of(context)!;
+              _showSuccessSnackBar(l2.coinsAdded(FirestoreService.coinsPerAd));
               _startAdCooldown();
               await _loadData();
             } else {
-              _showErrorSnackBar('Coin qo\'shishda xatolik yuz berdi');
+              final l2 = AppLocalizations.of(context)!;
+              _showErrorSnackBar(l2.coinAddError);
             }
           }
         },
         onFailed: () {
           if (mounted) {
-            _showErrorSnackBar('Reklama ko\'rsatishda xatolik yuz berdi');
+            final l2 = AppLocalizations.of(context)!;
+            _showErrorSnackBar(l2.adShowError);
           }
         },
       );
@@ -224,14 +218,14 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
         Navigator.of(context).pop(); // Pop dialog only
         setState(() => _isWatchingAd = false);
         if (!success) {
-          _showErrorSnackBar('Reklama ko\'rsatishda xatolik yuz berdi');
+          _showErrorSnackBar(l.adShowError);
         }
       }
     } catch (e) {
       if (mounted) {
         Navigator.of(context).pop(); // Pop dialog only
         setState(() => _isWatchingAd = false);
-        _showErrorSnackBar('Reklama ko\'rsatishda xatolik: $e');
+        _showErrorSnackBar(l.adShowErrorWithDetails(e.toString()));
       }
     }
   }
@@ -326,6 +320,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
     return WillPopScope(
       onWillPop: () async {
         widget.onUpdate();
@@ -333,7 +328,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Coinlar'),
+          title: Text(l.coins),
           backgroundColor: AppColors.primary,
           elevation: 0,
           leading: IconButton(
@@ -371,15 +366,15 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
                           padding: const EdgeInsets.all(16),
                           child: Column(
                             children: [
-                              _buildCoinDisplay(),
+                              _buildCoinDisplay(l),
                               const SizedBox(height: 24),
-                              _buildDailyStatus(),
+                              _buildDailyStatus(l),
                               const SizedBox(height: 24),
-                              _buildEarnCoinsSection(),
+                              _buildEarnCoinsSection(l),
                               const SizedBox(height: 24),
-                              _buildUCExchangeSection(),
+                              _buildUCExchangeSection(l),
                               const SizedBox(height: 24),
-                              _buildExchangeHistory(),
+                              _buildExchangeHistory(l),
                             ],
                           ),
                         ),
@@ -393,7 +388,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildCoinDisplay() {
+  Widget _buildCoinDisplay(AppLocalizations l) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -487,16 +482,16 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
               );
             },
           ),
-          const Text(
-            'Coinlaringiz va UC',
-            style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+          Text(
+            l.coinsAndUC,
+            style: const TextStyle(fontSize: 16, color: AppColors.textSecondary),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDailyStatus() {
+  Widget _buildDailyStatus(AppLocalizations l) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -508,9 +503,9 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Kunlik Status',
-            style: TextStyle(
+          Text(
+            l.dailyStatus,
+            style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
@@ -521,7 +516,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
             children: [
               Expanded(
                 child: _buildStatusItem(
-                  'O\'yinlar',
+                  l.games,
                   '${_dailyStatus['gamesPlayed'] ?? 0}/${_dailyStatus['maxGames'] ?? 0}',
                   Icons.gamepad,
                   AppColors.info,
@@ -530,7 +525,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
               const SizedBox(width: 16),
               Expanded(
                 child: _buildStatusItem(
-                  'Reklamalar',
+                  l.ads,
                   '${_dailyStatus['adsWatched'] ?? 0}/${_dailyStatus['maxAds'] ?? 0}',
                   Icons.ads_click,
                   AppColors.accent,
@@ -581,7 +576,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildEarnCoinsSection() {
+  Widget _buildEarnCoinsSection(AppLocalizations l) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -593,9 +588,9 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Coin Topish',
-            style: TextStyle(
+          Text(
+            l.earnCoins,
+            style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
@@ -603,8 +598,8 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 16),
           _buildEarnButton(
-            title: 'Reklama Ko\'rish',
-            subtitle: 'Har bir reklama uchun ${FirestoreService.coinsPerAd} coin',
+            title: l.watchAd,
+            subtitle: l.adRewardInfo(FirestoreService.coinsPerAd),
             icon: Icons.play_circle_fill,
             onPressed:
                 (_dailyStatus['canWatchAd'] ?? false) &&
@@ -613,10 +608,10 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
                 ? _watchAdForCoins
                 : null,
             buttonText: !_canWatchAd
-                ? '$_adCooldownSeconds soniya'
+                ? '${_adCooldownSeconds ~/ 60}:${(_adCooldownSeconds % 60).toString().padLeft(2, '0')}'
                 : (_dailyStatus['canWatchAd'] ?? false)
-                ? 'Reklama Ko\'rish'
-                : 'Limit tugadi',
+                ? l.watchAd
+                : l.adLimitReached,
             color: AppColors.success,
           ),
           const SizedBox(height: 12),
@@ -633,7 +628,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'O\'yin o\'ynab ham coin olishingiz mumkin! Aniqligingizga qarab 0-10 coin olasiz.',
+                    l.gameEarnInfo,
                     style: TextStyle(
                       fontSize: 14,
                       color: AppColors.textSecondary,
@@ -714,7 +709,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildUCExchangeSection() {
+  Widget _buildUCExchangeSection(AppLocalizations l) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -730,9 +725,9 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
             children: [
               Icon(Icons.currency_exchange, color: AppColors.accent, size: 24),
               const SizedBox(width: 8),
-              const Text(
-                'UC Almashtirish',
-                style: TextStyle(
+              Text(
+                l.ucExchange,
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
@@ -805,7 +800,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
                   const Spacer(),
                   if (!canAfford)
                     Text(
-                      'Yetarli emas',
+                      l.notEnough,
                       style: TextStyle(fontSize: 12, color: AppColors.danger),
                     ),
                 ],
@@ -825,9 +820,9 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text(
-                'UC Almashish',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              child: Text(
+                l.exchangeUC,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -836,7 +831,7 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildExchangeHistory() {
+  Widget _buildExchangeHistory(AppLocalizations l) {
     if (_history.isEmpty) {
       return Container(
         width: double.infinity,
@@ -850,9 +845,9 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
           children: [
             Icon(Icons.history, color: AppColors.textSecondary, size: 48),
             const SizedBox(height: 16),
-            const Text(
-              'Almashtirish tarixi bo\'sh',
-              style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+            Text(
+              l.exchangeHistoryEmpty,
+              style: const TextStyle(fontSize: 16, color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -872,9 +867,9 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'So\'nggi Almashtirish',
-            style: TextStyle(
+          Text(
+            l.recentExchanges,
+            style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
@@ -948,12 +943,12 @@ class _CoinScreenState extends State<CoinScreen> with TickerProviderStateMixin {
                       ),
                       child: Text(
                         exchange.status == 'pending'
-                            ? 'Kutilmoqda'
+                            ? l.statusPending
                             : exchange.status == 'approved'
-                                ? 'Tasdiqlangan'
+                                ? l.statusApproved
                                 : exchange.status == 'rejected'
-                                    ? 'Rad etilgan'
-                                    : 'Tugallandi',
+                                    ? l.statusRejected
+                                    : l.statusCompleted,
                         style: TextStyle(
                           fontSize: 10,
                           color: exchange.status == 'pending'
@@ -1020,23 +1015,24 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
 
   Future<void> _confirmExchange() async {
     if (!mounted) return;
+    final l = AppLocalizations.of(context)!;
     if (_selectedCoins == null || _selectedUC == null) {
-      _showErrorSnackBar('Iltimos, almashtirish miqdorini tanlang');
+      _showErrorSnackBar(l.selectExchangeAmountError);
       return;
     }
 
     if (_nicknameController.text.trim().isEmpty) {
-      _showErrorSnackBar('Iltimos, nickname kiriting');
+      _showErrorSnackBar(l.enterNickname);
       return;
     }
 
     if (_pubgIdController.text.trim().isEmpty) {
-      _showErrorSnackBar('Iltimos, PUBG ID kiriting');
+      _showErrorSnackBar(l.enterPubgId);
       return;
     }
 
     if (widget.currentCoins < _selectedCoins!) {
-      _showErrorSnackBar('Yetarli coin yo\'q');
+      _showErrorSnackBar(l.notEnoughCoins);
       return;
     }
 
@@ -1055,18 +1051,19 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
           _showSuccessDialog();
           widget.onExchangeSuccess();
         } else {
-          _showErrorSnackBar('Almashtirish muvaffaqiyatsiz');
+          _showErrorSnackBar(l.exchangeFailed);
         }
       }
     } catch (e) {
       if (mounted) {
-        _showErrorSnackBar('Xatolik yuz berdi: $e');
+        _showErrorSnackBar(l.errorOccurred(e.toString()));
       }
     }
   }
 
   void _showSuccessDialog() {
     if (!mounted) return;
+    final l = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1077,9 +1074,9 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
           children: [
             Icon(Icons.check_circle, color: AppColors.success, size: 28),
             const SizedBox(width: 12),
-            const Text(
-              'Muvaffaqiyatli!',
-              style: TextStyle(color: AppColors.textPrimary),
+            Text(
+              l.success,
+              style: const TextStyle(color: AppColors.textPrimary),
             ),
           ],
         ),
@@ -1087,9 +1084,9 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'UC almashtirish so\'rovi qabul qilindi!',
-              style: TextStyle(color: AppColors.textPrimary),
+            Text(
+              l.ucExchangeRequestAccepted,
+              style: const TextStyle(color: AppColors.textPrimary),
             ),
             const SizedBox(height: 16),
             Container(
@@ -1103,7 +1100,7 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Ma\'lumotlar:',
+                    l.info,
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.info,
@@ -1119,7 +1116,7 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
                     style: const TextStyle(color: AppColors.textSecondary),
                   ),
                   Text(
-                    'Miqdor: $_selectedCoins Coin → $_selectedUC UC',
+                    l.amount(_selectedCoins!, _selectedUC!),
                     style: const TextStyle(color: AppColors.textSecondary),
                   ),
                 ],
@@ -1127,7 +1124,7 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
             ),
             const SizedBox(height: 16),
             Text(
-              'So\'rov admin tomonidan ko\'rib chiqiladi. UC lar tasdiqlangandan so\'ng hisobingizga o\'tkaziladi.',
+              l.adminReviewNote,
               style: TextStyle(
                 fontSize: 14,
                 color: AppColors.textSecondary,
@@ -1140,7 +1137,7 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
           ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-            child: const Text('OK'),
+            child: Text(l.ok),
           ),
         ],
       ),
@@ -1161,12 +1158,13 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
     return AlertDialog(
       backgroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text(
-        'UC Almashtirish',
-        style: TextStyle(color: AppColors.textPrimary),
+      title: Text(
+        l.ucExchange,
+        style: const TextStyle(color: AppColors.textPrimary),
       ),
       content: SingleChildScrollView(
         child: Column(
@@ -1184,7 +1182,7 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
                   Icon(Icons.monetization_on, color: Colors.amber, size: 20),
                   const SizedBox(width: 8),
                   Text(
-                    'Mavjud: ${widget.currentCoins} coin',
+                    l.available(widget.currentCoins),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
@@ -1194,9 +1192,9 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Almashtirish miqdorini tanlang:',
-              style: TextStyle(
+            Text(
+              l.selectExchangeAmount,
+              style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 color: AppColors.textPrimary,
               ),
@@ -1276,7 +1274,7 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
                           const Spacer(),
                           if (!canAfford)
                             Text(
-                              'Yetarli emas',
+                              l.notEnough,
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey,
@@ -1290,9 +1288,9 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
               );
             }),
             const SizedBox(height: 16),
-            const Text(
-              'Ma\'lumotlaringizni kiriting:',
-              style: TextStyle(
+            Text(
+              l.enterYourInfo,
+              style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 color: AppColors.textPrimary,
               ),
@@ -1302,7 +1300,7 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
               controller: _nicknameController,
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
-                labelText: 'Nickname',
+                labelText: l.nickname,
                 labelStyle: const TextStyle(color: AppColors.textSecondary),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -1322,7 +1320,7 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
               style: const TextStyle(color: AppColors.textPrimary),
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: 'PUBG ID',
+                labelText: l.pubgId,
                 labelStyle: const TextStyle(color: AppColors.textSecondary),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -1342,15 +1340,15 @@ class _UCExchangeDialogState extends State<UCExchangeDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text(
-            'Bekor qilish',
-            style: TextStyle(color: AppColors.textSecondary),
+          child: Text(
+            l.cancel,
+            style: const TextStyle(color: AppColors.textSecondary),
           ),
         ),
         ElevatedButton(
           onPressed: _confirmExchange,
           style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
-          child: const Text('Almashish'),
+          child: Text(l.exchange),
         ),
       ],
     );

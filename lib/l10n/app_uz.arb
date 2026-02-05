@@ -1,0 +1,536 @@
+{
+  "@@locale": "uz",
+
+  "appTitle": "PUBG TDM Training",
+  "loading": "Yuklanmoqda...",
+
+  "pubgTdm": "PUBG TDM",
+  "training": "TRAINING",
+  "reaction": "REACTION",
+  "improveReaction": "Reaction tezligingizni oshiring",
+
+  "testAccount": "Test akkaunt",
+  "testAccountWarning": "test accountga uc berilmaydi va doimiy bu accountdan foydalanib bulmidi",
+  "testAccountCredentials": "Email: testaccount@test.com\nParol: 12345678",
+
+  "email": "Email",
+  "password": "Parol",
+  "name": "Ism",
+  "confirmPassword": "Parolni tasdiqlang",
+  "nickname": "Nickname",
+  "pubgId": "PUBG ID",
+
+  "enterEmail": "Email kiriting",
+  "enterValidEmail": "To'g'ri email kiriting",
+  "enterPassword": "Parol kiriting",
+  "passwordMinLength": "Parol kamida 6 ta belgidan iborat bo'lishi kerak",
+  "enterName": "Ism kiriting",
+  "nameMinLength": "Ism kamida 2 ta belgidan iborat bo'lishi kerak",
+  "confirmPasswordHint": "Parolni tasdiqlang",
+  "passwordsNotMatch": "Parollar mos kelmayapti",
+
+  "login": "Kirish",
+  "or": "yoki",
+  "signInWithGoogle": "Google bilan kirish",
+  "noAccount": "Akkauntingiz yo'qmi? ",
+  "register": "Ro'yxatdan o'tish",
+  "createNewAccount": "Yangi akkaunt yarating",
+  "haveAccount": "Akkauntingiz bormi? ",
+  "termsAgreement": "Davom etish orqali foydalanish shartlariga\nrozilik bildirasiz",
+
+  "loginError": "Kirish xatoligi",
+  "userNotFound": "Foydalanuvchi topilmadi",
+  "wrongPassword": "Parol noto'g'ri",
+  "invalidEmail": "Email formati noto'g'ri",
+  "invalidCredential": "Email yoki parol noto'g'ri",
+  "registerError": "Ro'yxatdan o'tishda xatolik yuz berdi",
+  "emailAlreadyInUse": "Bu email allaqachon ro'yxatdan o'tgan",
+  "weakPassword": "Parol juda zaif",
+  "loginErrorWithDetails": "Kirish xatoligi: {error}",
+  "@loginErrorWithDetails": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+
+  "noInternet": "Internetga ulanmagansiz!",
+  "noInternetDesc": "Iltimos, internetga ulanib qayta urinib ko'ring.",
+  "retry": "Qayta urinish",
+
+  "coins": "Coinlar",
+  "totalUC": "Jami UC",
+  "start": "BOSHLASH",
+  "startSubtitle": "Reaction training o'ynash",
+  "coinsMenu": "COINLAR",
+  "coinsMenuSubtitle": "Coin yig'ish va UC almashish",
+  "ucShop": "UC DO'KONI",
+  "ucShopSubtitle": "UC sotib olish (so'm bilan)",
+  "tasks": "VAZIFALAR",
+  "tasksSubtitle": "Vazifa bajaring — coin oling",
+  "miniPubg": "MINI PUBG",
+  "miniPubgSubtitle": "Dushmanlarni yo'q qiling va coin oling",
+  "leaderboard": "REYTING",
+  "leaderboardSubtitle": "Top o'yinchilar reytingi",
+  "statistics": "STATISTIKA",
+  "statisticsSubtitle": "Natijalaringizni ko'ring",
+  "settings": "SOZLAMALAR",
+  "settingsSubtitle": "O'yin sozlamalari",
+  "adminPanel": "ADMIN PANEL",
+  "adminPanelSubtitle": "Foydalanuvchilar va sozlamalar",
+
+  "news": "YANGILIKLAR",
+  "close": "Yopish",
+  "dataLoadError": "Ma'lumotlarni yuklashda xatolik yuz berdi",
+
+  "settingsTitle": "Sozlamalar",
+  "statsLabel": "Statistika",
+  "streak": "Streak",
+  "streakDays": "{count} kun",
+  "@streakDays": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "total": "Jami",
+  "referralCode": "Taklif Kodi",
+  "yourCode": "Sizning kodingiz:",
+  "referralCount": "{count} ta taklif",
+  "@referralCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "codeCopied": "Kod nusxalandi!",
+  "appName": "TDM Training",
+  "version": "Versiya 2.0.0",
+  "copyright": "© 2025 TDM Training. Barcha huquqlar himoyalangan.",
+  "logout": "Chiqish",
+  "logoutConfirm": "Hisobdan chiqishni xohlaysizmi?",
+  "cancel": "Bekor qilish",
+  "adLoading": "Reklama yuklanmoqda...",
+  "skipAd": "O'tkazib yuborish",
+  "user": "Foydalanuvchi",
+
+  "difficultyTitle": "Qiyinlik Darajasi",
+  "selectDifficulty": "Qiyinlik darajasini tanlang",
+  "difficultyInfo": "Har bir daraja o'ziga xos qiyinchilikka ega",
+  "targetTime": "Nishon vaqti:",
+  "targetSize": "Nishon hajmi:",
+  "scoreMultiplier": "Ball ko'paytiruvchi:",
+  "movingTargets": "Harakat qiluvchi nishonlar:",
+  "multipleTargets": "Ko'p nishonlar:",
+  "yes": "Ha",
+
+  "diffEasy": "OSON",
+  "diffMedium": "O'RTA",
+  "diffHard": "QIYIN",
+  "diffExpert": "EKSPERT",
+  "diffEasyDesc": "Yangi boshlovchilar uchun",
+  "diffMediumDesc": "O'rta daraja o'yinchilar uchun",
+  "diffHardDesc": "Tajribali o'yinchilar uchun",
+  "diffExpertDesc": "Professional o'yinchilar uchun",
+
+  "coinsAndUC": "Coinlaringiz va UC",
+  "dailyStatus": "Kunlik Status",
+  "games": "O'yinlar",
+  "ads": "Reklamalar",
+  "earnCoins": "Coin Topish",
+  "watchAd": "Reklama Ko'rish",
+  "adRewardInfo": "Har bir reklama uchun {coins} coin",
+  "@adRewardInfo": {
+    "placeholders": {
+      "coins": {"type": "int"}
+    }
+  },
+  "adLimitReached": "Limit tugadi",
+  "gameEarnInfo": "O'yin o'ynab ham coin olishingiz mumkin! Aniqligingizga qarab 0-10 coin olasiz.",
+  "ucExchange": "UC Almashtirish",
+  "exchangeUC": "UC Almashish",
+  "notEnough": "Yetarli emas",
+  "recentExchanges": "So'nggi Almashtirish",
+  "exchangeHistoryEmpty": "Almashtirish tarixi bo'sh",
+  "statusPending": "Kutilmoqda",
+  "statusApproved": "Tasdiqlangan",
+  "statusRejected": "Rad etilgan",
+  "statusCompleted": "Tugallandi",
+
+  "available": "Mavjud: {coins} coin",
+  "@available": {
+    "placeholders": {
+      "coins": {"type": "int"}
+    }
+  },
+  "selectExchangeAmount": "Almashtirish miqdorini tanlang:",
+  "enterYourInfo": "Ma'lumotlaringizni kiriting:",
+  "exchange": "Almashish",
+  "selectExchangeAmountError": "Iltimos, almashtirish miqdorini tanlang",
+  "enterNickname": "Iltimos, nickname kiriting",
+  "enterPubgId": "Iltimos, PUBG ID kiriting",
+  "notEnoughCoins": "Yetarli coin yo'q",
+  "exchangeFailed": "Almashtirish muvaffaqiyatsiz",
+  "errorOccurred": "Xatolik yuz berdi: {error}",
+  "@errorOccurred": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "success": "Muvaffaqiyatli!",
+  "ucExchangeRequestAccepted": "UC almashtirish so'rovi qabul qilindi!",
+  "info": "Ma'lumotlar:",
+  "amount": "Miqdor: {coins} Coin → {uc} UC",
+  "@amount": {
+    "placeholders": {
+      "coins": {"type": "int"},
+      "uc": {"type": "int"}
+    }
+  },
+  "adminReviewNote": "So'rov admin tomonidan ko'rib chiqiladi. UC lar tasdiqlangandan so'ng hisobingizga o'tkaziladi.",
+  "ok": "OK",
+
+  "adAlreadyLoading": "Reklama allaqachon yuklanmoqda",
+  "adLimitReachedToday": "Bugun reklamalar limitiga yetdingiz",
+  "pleaseWait": "Iltimos {time} kuting",
+  "@pleaseWait": {
+    "placeholders": {
+      "time": {"type": "String"}
+    }
+  },
+  "coinsAdded": "{coins} coin qo'shildi!",
+  "@coinsAdded": {
+    "placeholders": {
+      "coins": {"type": "int"}
+    }
+  },
+  "coinAddError": "Coin qo'shishda xatolik yuz berdi",
+  "adShowError": "Reklama ko'rsatishda xatolik yuz berdi",
+  "adShowErrorWithDetails": "Reklama ko'rsatishda xatolik: {error}",
+  "@adShowErrorWithDetails": {
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+
+  "yourRank": "Sizning o'rningiz: #{rank}",
+  "@yourRank": {
+    "placeholders": {
+      "rank": {"type": "int"}
+    }
+  },
+  "noDataYet": "Hali ma'lumot yo'q",
+  "you": "Siz",
+
+  "overallStats": "Umumiy statistika",
+  "overall": "Umumiy",
+  "results": "Natijalar",
+  "levels": "Darajalar",
+  "bestScore": "Eng yuqori ball",
+  "averageScore": "O'rtacha ball",
+  "gamesPlayed": "O'ynagan o'yinlar",
+  "averageAccuracy": "O'rtacha aniqlik",
+  "detailedInfo": "Batafsil ma'lumot",
+  "totalHits": "Jami tushganlar:",
+  "totalMisses": "Jami o'tkazilganlar:",
+  "totalShots": "Jami o'qlar:",
+  "bestResult": "Eng yaxshi natija:",
+  "score": "Ball:",
+  "accuracy": "Aniqlik:",
+  "date": "Sana:",
+  "clearStats": "Statistikani tozalash",
+  "statsCleared": "Statistika tozalandi",
+  "noResultsYet": "Hali natijalar yo'q",
+  "playToCollect": "O'yin o'ynab natijalar yig'ing!",
+  "hits": "Tushgan: {hits}/{total}",
+  "@hits": {
+    "placeholders": {
+      "hits": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "gamesPlayedCount": "{count} o'yin o'ynalgan",
+  "@gamesPlayedCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "best": "Eng yaxshi",
+  "notPlayedYet": "Bu darajada hali o'ynalmagan",
+  "clearStatsConfirm": "Barcha natijalar va statistikalar o'chiriladi. Bu amalni qaytarib bo'lmaydi.",
+  "clear": "Tozalash",
+
+  "adLoadingText": "Reklama yuklanmoqda...",
+  "adLoadFailed": "Reklama yuklanmadi",
+
+  "startGame": "START",
+  "readyToPlay": "O'yinga tayyor",
+  "matchNumber": "Match #{number}",
+  "@matchNumber": {
+    "placeholders": {
+      "number": {"type": "int"}
+    }
+  },
+  "gameDuration": "O'yin davomiyligi",
+  "targetSizeLabel": "Nishon hajmi",
+  "rewardLabel": "Mukofot",
+  "upToCoins": "{coins} gacha coin",
+  "@upToCoins": {
+    "placeholders": {
+      "coins": {"type": "int"}
+    }
+  },
+
+  "level": "Level",
+  "lives": "Jonlar",
+  "reward": "Mukofot",
+  "remainingGames": "Qolgan o'yinlar",
+
+  "language": "Til",
+  "uzbek": "O'zbekcha",
+  "russian": "Русский",
+  "english": "English",
+  "selectLanguage": "Tilni tanlang",
+
+  "totalUsers": "Jami userlar",
+  "activeToday": "Bugun faol",
+  "pending": "Kutilmoqda",
+  "users": "Foydalanuvchilar",
+  "usersSubtitle": "Barcha userlarni ko'rish va boshqarish",
+  "tasksAdmin": "Vazifalar",
+  "tasksAdminSubtitle": "Vazifalarni qo'shish va boshqarish",
+  "ucRequests": "UC so'rovlar",
+  "ucRequestsSubtitle": "{count} ta kutilayotgan so'rov",
+  "@ucRequestsSubtitle": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "announcements": "E'lonlar",
+  "announcementsSubtitle": "Yangiliklar va e'lonlarni boshqarish",
+  "ucOrders": "UC Buyurtmalar",
+  "ucOrdersSubtitle": "UC sotib olish buyurtmalari",
+  "settingsAdmin": "Sozlamalar",
+  "settingsAdminSubtitle": "Telegram, Instagram, limitlar",
+
+  "notLoggedIn": "Login qilmagan! Iltimos qaytadan kiriting",
+  "taskWarning": "Ogohlantirish: Sizning obunangiz (yoki bajarilgan vazifa) adminlar tomonidan tekshiriladi.\nAgar 'bajardim/obuna bo'ldim' deb aldasangiz, hisobingizdan 2 baravar coin yechib olinadi.",
+  "telegramIdTitle": "Telegram ID",
+  "verificationCode": "Tasdiqlash Kodi",
+  "step1TelegramId": "1-qadam: Telegram ID kiriting",
+  "howToGetTelegramId": "Telegram ID qanday olish?",
+  "telegramIdInstructions": "1. Botga o'ting: @your_bot_name\n2. /myid buyrug'ini yuboring\n3. ID ni nusxalang",
+  "openBot": "Botni ochish →",
+  "telegramIdConfirmed": "Telegram ID tasdiqlandi!",
+  "step2EnterCode": "2-qadam: Botdan kelgan kodni kiriting",
+  "whereToGetCode": "Kodni qayerdan olish?",
+  "codeInstructions": "1. Botga /code buyrug'ini yuboring\n2. Bot sizga 4 xonali kod yuboradi\n3. Kodni bu yerga kiriting",
+  "coinReward": "+{reward} coin olasiz",
+  "@coinReward": {
+    "placeholders": {
+      "reward": {"type": "int"}
+    }
+  },
+  "next": "Keyingi",
+  "verify": "Tasdiqlash",
+  "coinEarned": "+{reward} coin oldiniz!",
+  "@coinEarned": {
+    "placeholders": {
+      "reward": {"type": "int"}
+    }
+  },
+  "taskAlreadyCompleted": "Bu vazifa bugun allaqachon bajarilgan",
+  "telegramVerify": "Telegram Tekshirish",
+  "enterTelegramIdLabel": "Telegram ID kiriting:",
+  "telegramIdInstructions2": "1. Telegram'da @userinfobot ga yozing\n2. /start bosing\n3. \"Id:\" qatoridagi raqamni nusxalang",
+  "openUserInfoBot": "@userinfobot ochish →",
+  "check": "Tekshirish",
+  "subscriptionNotFound": "Obuna topilmadi! Kanalga obuna bo'ling va qaytadan urinib ko'ring.",
+  "telegramChannel": "Telegram Kanal",
+  "subscribedToChannel": "Telegram kanalga obuna bo'ldingizmi?",
+  "no": "Yo'q",
+  "yesSubscribed": "Ha, obuna bo'ldim",
+  "subscribedToInstagram": "Instagram sahifaga obuna bo'ldingizmi?",
+  "taskCompletedQuestion": "Vazifani bajardingizmi?",
+  "shareAppText": "TDM Training - UC topishning eng oson yo'li! Bu ilovani yuklab oling va coin to'plang!",
+  "share": "Ulashish",
+  "sharedApp": "Ilovani ulashdingizmi?",
+  "adNotLoaded": "Reklama yuklanmadi",
+  "taskTypeDailyBonus": "Kunlik bonus",
+  "taskTypeInviteFriend": "Do'st taklif",
+  "taskTypeAd": "Reklama",
+  "taskTypeGame": "O'yin",
+  "taskTypeApp": "Ilova",
+  "taskTypeShare": "Ulashish",
+  "taskTypeRate": "Baholash",
+  "todayProgress": "Bugungi progress",
+  "noTasksYet": "Hozircha vazifalar yo'q",
+  "newTasksComingSoon": "Tez orada yangi vazifalar qo'shiladi",
+  "yourReferralCode": "Taklif kodingiz",
+  "copy": "Nusxalash",
+  "referralEarnInfo": "Har bir taklif uchun +100 coin oling!",
+  "haveReferralCode": "Taklif kodi bor?",
+  "confirm": "Tasdiqlash",
+  "referralEarnHint": "Taklif kodi kiritib +50 coin oling!",
+  "enter6DigitCode": "6 belgili kod kiriting",
+  "referralSuccess": "+50 coin oldingiz! Taklif qiluvchi ham +100 coin oldi.",
+  "referralCodeNotFound": "Kod topilmadi yoki allaqachon ishlatilgan",
+  "taskCompleted": "Bajarildi",
+  "enterTelegramIdError": "Telegram ID kiriting",
+  "invalidIdFormat": "Noto'g'ri ID format",
+  "subscribeFirst": "Avval botga obuna bo'ling va /code buyrug'ini yuboring",
+  "serverError": "Server bilan bog'lanishda xatolik",
+  "checkInternet": "Internet ulanishini tekshiring",
+  "enter4DigitCode": "4 xonali kod kiriting",
+  "wrongCode": "Noto'g'ri kod",
+  "yesCompleted": "Ha, bajardim",
+  "referralShareText": "TDM Training ilovasini yuklab, mening taklif kodimni kiriting: {code}\nDo'stingiz uchun +50 coin, siz uchun +100 coin!",
+  "@referralShareText": {
+    "placeholders": {
+      "code": {"type": "String"}
+    }
+  },
+  "sendCodeToBot": "Botga /code buyrug'ini yuboring",
+
+  "ucShopBuyViaId": "ID orqali UC sotib oling",
+  "ucShopDesc": "To'lovni amalga oshiring, chekni yuklang, admin tasdiqlagandan so'ng UC yuboriladi",
+  "ucPricesList": "UC NARXLARI",
+  "orderHistory": "BUYURTMALAR TARIXI",
+  "noOrdersYet": "Hali buyurtma yo'q",
+  "enterYourPubgId": "ID raqamingizni kiriting",
+  "selectImage": "Rasm tanlash",
+  "camera": "Kamera",
+  "gallery": "Galereya",
+  "receiptSelected": "Chek tanlandi",
+  "uploadReceipt": "Chek rasmini yuklang",
+  "paymentNote": "To'lov chekini yuklang. Admin tekshirib tasdiqlagandan so'ng UC yuboriladi.",
+  "imageUploadFailed": "Rasm yuklanmadi. Qayta urinib ko'ring.",
+  "orderAccepted": "Buyurtma qabul qilindi! Admin tekshiradi.",
+  "submitting": "Yuborilmoqda...",
+  "placeOrder": "Buyurtma berish",
+  "ucStatusPending": "Chek kutilmoqda",
+  "ucStatusConfirmed": "Chek tasdiqlandi",
+  "ucStatusCompleted": "Bajarildi",
+  "ucStatusRejected": "Rad etildi",
+  "ucStatusUnknown": "Noma'lum",
+  "som": "so'm",
+  "priceSom": "{price} so'm",
+  "@priceSom": {
+    "placeholders": {
+      "price": {"type": "String"}
+    }
+  },
+
+  "dailyLimit": "Kunlik Limit",
+  "dailyLimitReached": "Bugun maksimal o'yin soniga yetdingiz!",
+  "dailyGameLimitInfo": "Kuniga {count} marta o'ynash mumkin",
+  "@dailyGameLimitInfo": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "tryAgainTomorrow": "Ertaga qayta urinib ko'ring!",
+  "gamePreparingLoading": "O'yin tayyorlanmoqda...",
+  "adFailedRetry": "Reklama yuklanmadi. Qayta urinib ko'ring.",
+  "matchFinishedTitle": "Match {number} Tugadi!",
+  "@matchFinishedTitle": {
+    "placeholders": {
+      "number": {"type": "int"}
+    }
+  },
+  "coinEarnedGame": "+1 Coin oldingiz!",
+  "averageTimeLabel": "O'rtacha vaqt:",
+  "hitsLabel": "Tegganlar:",
+  "missesLabel": "O'tkaziganlar:",
+  "passedLabel": "O'tganlar:",
+  "crashedLabel": "Urilganlar:",
+  "remainingMatchesInfo": "Bugun yana {count} match o'ynash mumkin",
+  "@remainingMatchesInfo": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "nextMatch": "Keyingi Match",
+  "tapToJump": "Tap to Jump!",
+  "passThroughPipes": "Pipe'lardan o'tib boring",
+  "timeLabel": "Vaqt:",
+  "targetsLabel": "Nishonlar:",
+  "targetSmall": "Kichik",
+  "targetLarge": "Katta",
+  "matchLabel": "Match {number}",
+  "@matchLabel": {
+    "placeholders": {
+      "number": {"type": "int"}
+    }
+  },
+  "flappyModeMatch": "Flappy Mode - Match {number}",
+  "@flappyModeMatch": {
+    "placeholders": {
+      "number": {"type": "int"}
+    }
+  },
+  "rewardCoins": "+{coins} Coin",
+  "@rewardCoins": {
+    "placeholders": {
+      "coins": {"type": "int"}
+    }
+  },
+  "backToLevels": "Darajalar",
+
+  "miniPubgDestroyEnemies": "Dushmanlarni yo'q qiling!",
+  "gamesLeftWarning": "Faqat {count} ta o'yin qoldi!",
+  "@gamesLeftWarning": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "autoFire": "Avto-otish",
+  "selectLevel": "DARAJA TANLANG",
+  "miniPubgEasyDesc": "Sekin dushmanlar",
+  "miniPubgMediumDesc": "Tezroq harakat",
+  "miniPubgHardDesc": "Juda tez dushmanlar",
+  "back": "Orqaga",
+  "killRewardInfo": "10+ kill = 1 Coin",
+  "remaining": "Qolgan",
+  "gamesCount": "{count} o'yin",
+  "@gamesCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
+  "waveNumber": "To'lqin {number}",
+  "@waveNumber": {
+    "placeholders": {
+      "number": {"type": "int"}
+    }
+  },
+  "controlHintAutoFire": "Chapga-o'ngga suring",
+  "controlHintManual": "Suring va bosing",
+  "gameOverTitle": "O'YIN TUGADI!",
+  "enemies": "Dushmanlar",
+  "maxComboLabel": "Max Combo",
+  "accuracyShort": "Aniqlik",
+  "coinsEarnedLabel": "COIN OLINDI",
+  "menuButton": "MENYU",
+  "playAgain": "YANA O'YNASH",
+
+  "promoCodeTitle": "Telegram Bot Vazifa",
+  "promoCodeDesc": "Telegram botimizda vazifalarni bajaring va promo kod oling!",
+  "openTelegramBot": "Telegram Botni ochish",
+  "enterPromoCode": "Promo kodni kiriting",
+  "redeemCode": "Tasdiqlash",
+  "promoCodeSuccess": "Tabriklaymiz! +{coins} coin qo'shildi!",
+  "@promoCodeSuccess": {
+    "placeholders": {
+      "coins": {"type": "int"}
+    }
+  },
+  "promoCodeInvalid": "Promo kod topilmadi",
+  "promoCodeUsed": "Bu promo kod allaqachon ishlatilgan",
+  "promoCodeError": "Xatolik yuz berdi. Qayta urinib ko'ring",
+
+  "ucServiceBadge": "100% HALOL VA HAQIQIY",
+  "ucServiceDesc2": "Eng yaxshi UC servis xizmati! Tez, ishonchli va arzon narxlarda PUBG Mobile UC xarid qiling. Barcha tranzaksiyalar kafolatlanadi.",
+  "ucOrderViaTelegram": "Telegram orqali buyurtma berish",
+  "ucServiceFeature1": "Tez yetkazib berish (5-30 daqiqa)",
+  "ucServiceFeature2": "Eng arzon narxlar",
+  "ucServiceFeature3": "24/7 qo'llab-quvvatlash",
+  "ucServiceFeature4": "100% xavfsiz tranzaksiya"
+}

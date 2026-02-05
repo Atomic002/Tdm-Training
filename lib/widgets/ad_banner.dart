@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../services/admob_service.dart';
 import '../utils/app_colors.dart';
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 
 class AdBannerWidget extends StatefulWidget {
   final AdSize adSize;
@@ -25,8 +26,8 @@ class _AdBannerWidgetState extends State<AdBannerWidget> {
   bool _isLoading = false;
   bool _hasError = false;
   int _retryCount = 0;
-  static const int _maxRetries = 3;
-  static const Duration _baseRetryDelay = Duration(seconds: 2);
+  static const int _maxRetries = 1;
+  static const Duration _baseRetryDelay = Duration(seconds: 5);
 
   @override
   void initState() {
@@ -55,26 +56,11 @@ class _AdBannerWidgetState extends State<AdBannerWidget> {
       _hasError = false;
     });
 
-    try {
-      // AdMobService initialization check
-      if (!AdMobService.isInitialized) {
-        debugPrint('AdBannerWidget: Initializing AdMobService...');
-        await AdMobService.initialize();
-
-        if (!mounted) return;
-
-        // Wait a bit for initialization to complete
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-
-      if (mounted && AdMobService.isInitialized) {
-        _loadBannerAd();
-      } else {
-        _handleAdError('AdMobService initialization failed');
-      }
-    } catch (e) {
-      debugPrint('AdBannerWidget: Error initializing AdMobService: $e');
-      _handleAdError('Initialization error');
+    // AdMobService main.dart da initialize qilingan
+    if (AdMobService.isInitialized) {
+      _loadBannerAd();
+    } else {
+      _handleAdError('AdMobService not initialized');
     }
   }
 
@@ -233,7 +219,7 @@ class _AdBannerWidgetState extends State<AdBannerWidget> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Reklama yuklanmoqda...',
+              AppLocalizations.of(context)?.adLoadingText ?? 'Loading...',
               style: TextStyle(
                 color: AppColors.textSecondary.withOpacity(0.7),
                 fontSize: 10,
@@ -266,7 +252,7 @@ class _AdBannerWidgetState extends State<AdBannerWidget> {
               size: 16,
             ),
             Text(
-              'Reklama yuklanmadi',
+              AppLocalizations.of(context)?.adLoadFailed ?? 'Failed',
               style: TextStyle(
                 color: AppColors.textSecondary.withOpacity(0.6),
                 fontSize: 10,
@@ -281,7 +267,7 @@ class _AdBannerWidgetState extends State<AdBannerWidget> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  'Qayta urinish',
+                  AppLocalizations.of(context)?.retry ?? 'Retry',
                   style: TextStyle(
                     color: AppColors.primary,
                     fontSize: 10,

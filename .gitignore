@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Telegram Bot secrets
+telegram_bot/service_account.json
+telegram_bot/.env

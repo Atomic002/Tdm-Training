@@ -94,5 +94,39 @@ service cloud.firestore {
       allow write: if isSignedIn() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
+
+    // ==================== PROMO CODES (Telegram Bot) ====================
+
+    match /promo_codes/{code} {
+      // O'qish - autentifikatsiya qilingan foydalanuvchilar
+      allow read: if isSignedIn();
+
+      // Yaratish - faqat Admin SDK (bot) orqali
+      allow create: if false;
+
+      // Yangilash - faqat ishlatilmagan kodni ishlatilgan deb belgilash
+      allow update: if isSignedIn() &&
+        // Kod hali ishlatilmagan bo'lishi kerak
+        resource.data.used == false &&
+        // Faqat used, used_by, used_at fieldlari o'zgarishi mumkin
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'used_by', 'used_at']) &&
+        // used = true bo'lishi kerak
+        request.resource.data.used == true &&
+        // used_by = o'zi bo'lishi kerak
+        request.resource.data.used_by == request.auth.uid;
+
+      // O'chirish mumkin emas
+      allow delete: if false;
+    }
+
+    // ==================== BOT CONFIG (faqat Admin SDK) ====================
+
+    match /bot_config/{document} {
+      allow read, write: if false;
+    }
+
+    match /bot_users/{document} {
+      allow read, write: if false;
+    }
   }
 }

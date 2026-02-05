@@ -4,6 +4,8 @@ import 'package:flutter_application_1/screens/admin/admin_users_screen.dart';
 import 'package:flutter_application_1/screens/admin/admin_tasks_screen.dart';
 import 'package:flutter_application_1/screens/admin/admin_exchanges_screen.dart';
 import 'package:flutter_application_1/screens/admin/admin_settings_screen.dart';
+import 'package:flutter_application_1/screens/admin/admin_announcements_screen.dart';
+import 'package:flutter_application_1/screens/admin/admin_uc_orders_screen.dart';
 import '../../utils/app_colors.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -152,6 +154,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     builder: (context) => const AdminExchangesScreen(),
                   ),
                 ).then((_) => _loadStats()),
+              ),
+              const SizedBox(height: 12),
+              _buildAdminMenuItem(
+                title: 'E\'lonlar',
+                subtitle: 'Yangiliklar va e\'lonlarni boshqarish',
+                icon: Icons.campaign,
+                color: Colors.purple,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminAnnouncementsScreen(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildAdminMenuItem(
+                title: 'UC Buyurtmalar',
+                subtitle: 'UC sotib olish buyurtmalari',
+                icon: Icons.shopping_cart,
+                color: Colors.teal,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AdminUCOrdersScreen(),
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               _buildAdminMenuItem(

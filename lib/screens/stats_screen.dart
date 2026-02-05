@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_application_1/widgets/ad_banner.dart';
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import '../utils/app_colors.dart';
 import '../models/difficulty.dart';
 import '../services/score_service.dart';
@@ -55,11 +56,25 @@ class _StatsScreenState extends State<StatsScreen>
     super.dispose();
   }
 
+  String _getDifficultyName(AppLocalizations l, Difficulty difficulty) {
+    switch (difficulty) {
+      case Difficulty.easy:
+        return l.diffEasy;
+      case Difficulty.medium:
+        return l.diffMedium;
+      case Difficulty.hard:
+        return l.diffHard;
+      case Difficulty.expert:
+        return l.diffExpert;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Statistika'),
+        title: Text(l.statsLabel),
         backgroundColor: AppColors.primary,
         elevation: 0,
         bottom: TabBar(
@@ -68,10 +83,10 @@ class _StatsScreenState extends State<StatsScreen>
           indicatorWeight: 3,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(icon: Icon(Icons.bar_chart), text: 'Umumiy'),
-            Tab(icon: Icon(Icons.list), text: 'Natijalar'),
-            Tab(icon: Icon(Icons.military_tech), text: 'Darajalar'),
+          tabs: [
+            Tab(icon: const Icon(Icons.bar_chart), text: l.overall),
+            Tab(icon: const Icon(Icons.list), text: l.results),
+            Tab(icon: const Icon(Icons.military_tech), text: l.levels),
           ],
         ),
       ),
@@ -97,9 +112,9 @@ class _StatsScreenState extends State<StatsScreen>
                   : TabBarView(
                       controller: _tabController,
                       children: [
-                        _buildOverviewTab(),
-                        _buildScoresTab(),
-                        _buildDifficultyTab(),
+                        _buildOverviewTab(l),
+                        _buildScoresTab(l),
+                        _buildDifficultyTab(l),
                       ],
                     ),
             ),
@@ -110,7 +125,7 @@ class _StatsScreenState extends State<StatsScreen>
     );
   }
 
-  Widget _buildOverviewTab() {
+  Widget _buildOverviewTab(AppLocalizations l) {
     final bestScore = _topScores.isNotEmpty ? _topScores.first : null;
 
     return SingleChildScrollView(
@@ -118,9 +133,9 @@ class _StatsScreenState extends State<StatsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Umumiy statistika',
-            style: TextStyle(
+          Text(
+            l.overallStats,
+            style: const TextStyle(
               color: AppColors.textPrimary,
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -133,7 +148,7 @@ class _StatsScreenState extends State<StatsScreen>
             children: [
               Expanded(
                 child: _buildStatCard(
-                  'Eng yuqori ball',
+                  l.bestScore,
                   '${_stats['bestScore'] ?? 0}',
                   Icons.emoji_events,
                   AppColors.accent,
@@ -142,7 +157,7 @@ class _StatsScreenState extends State<StatsScreen>
               const SizedBox(width: 12),
               Expanded(
                 child: _buildStatCard(
-                  'O\'rtacha ball',
+                  l.averageScore,
                   '${(_stats['averageScore'] ?? 0.0).toStringAsFixed(0)}',
                   Icons.trending_up,
                   AppColors.info,
@@ -157,7 +172,7 @@ class _StatsScreenState extends State<StatsScreen>
             children: [
               Expanded(
                 child: _buildStatCard(
-                  'O\'ynagan o\'yinlar',
+                  l.gamesPlayed,
                   '${_stats['totalGames'] ?? 0}',
                   Icons.games,
                   AppColors.success,
@@ -166,7 +181,7 @@ class _StatsScreenState extends State<StatsScreen>
               const SizedBox(width: 12),
               Expanded(
                 child: _buildStatCard(
-                  'O\'rtacha aniqlik',
+                  l.averageAccuracy,
                   '${(_stats['averageAccuracy'] ?? 0.0).toStringAsFixed(1)}%',
                   Icons.gps_fixed,
                   AppColors.primary,
@@ -192,9 +207,9 @@ class _StatsScreenState extends State<StatsScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Batafsil ma\'lumot',
-                  style: TextStyle(
+                Text(
+                  l.detailedInfo,
+                  style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -202,17 +217,17 @@ class _StatsScreenState extends State<StatsScreen>
                 ),
                 const SizedBox(height: 16),
                 _buildDetailRow(
-                  'Jami tushganlar:',
+                  l.totalHits,
                   '${_stats['totalHits'] ?? 0}',
                   AppColors.success,
                 ),
                 _buildDetailRow(
-                  'Jami o\'tkazilganlar:',
+                  l.totalMisses,
                   '${_stats['totalMisses'] ?? 0}',
                   AppColors.danger,
                 ),
                 _buildDetailRow(
-                  'Jami o\'qlar:',
+                  l.totalShots,
                   '${(_stats['totalHits'] ?? 0) + (_stats['totalMisses'] ?? 0)}',
                   AppColors.info,
                 ),
@@ -220,9 +235,9 @@ class _StatsScreenState extends State<StatsScreen>
                   const SizedBox(height: 16),
                   const Divider(color: AppColors.textSecondary),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Eng yaxshi natija:',
-                    style: TextStyle(
+                  Text(
+                    l.bestResult,
+                    style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -230,17 +245,17 @@ class _StatsScreenState extends State<StatsScreen>
                   ),
                   const SizedBox(height: 8),
                   _buildDetailRow(
-                    'Ball:',
+                    l.score,
                     '${bestScore.score}',
                     AppColors.accent,
                   ),
                   _buildDetailRow(
-                    'Aniqlik:',
+                    l.accuracy,
                     '${bestScore.accuracy.toStringAsFixed(1)}%',
                     AppColors.success,
                   ),
                   _buildDetailRow(
-                    'Sana:',
+                    l.date,
                     bestScore.formattedDate,
                     AppColors.textSecondary,
                   ),
@@ -257,7 +272,7 @@ class _StatsScreenState extends State<StatsScreen>
               child: ElevatedButton.icon(
                 onPressed: _showClearDialog,
                 icon: const Icon(Icons.delete_sweep),
-                label: const Text('Statistikani tozalash'),
+                label: Text(l.clearStats),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.danger,
                   foregroundColor: Colors.white,
@@ -269,26 +284,26 @@ class _StatsScreenState extends State<StatsScreen>
     );
   }
 
-  Widget _buildScoresTab() {
+  Widget _buildScoresTab(AppLocalizations l) {
     if (_topScores.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.sports_esports,
               size: 64,
               color: AppColors.textSecondary,
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
-              'Hali natijalar yo\'q',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 18),
+              l.noResultsYet,
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 18),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
-              'O\'yin o\'ynab natijalar yig\'ing!',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+              l.playToCollect,
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
             ),
           ],
         ),
@@ -348,7 +363,7 @@ class _StatsScreenState extends State<StatsScreen>
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Ball: ${score.score}',
+                          '${l.score} ${score.score}',
                           style: const TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 16,
@@ -368,7 +383,7 @@ class _StatsScreenState extends State<StatsScreen>
                     Row(
                       children: [
                         Text(
-                          'Aniqlik: ${score.accuracy.toStringAsFixed(1)}%',
+                          '${l.accuracy} ${score.accuracy.toStringAsFixed(1)}%',
                           style: const TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 14,
@@ -376,7 +391,7 @@ class _StatsScreenState extends State<StatsScreen>
                         ),
                         const SizedBox(width: 16),
                         Text(
-                          'Tushgan: ${score.hits}/${score.totalShots}',
+                          l.hits(score.hits, score.totalShots),
                           style: const TextStyle(
                             color: AppColors.textSecondary,
                             fontSize: 14,
@@ -396,7 +411,7 @@ class _StatsScreenState extends State<StatsScreen>
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              score.difficulty!.name.toUpperCase(),
+                              _getDifficultyName(l, score.difficulty!),
                               style: TextStyle(
                                 color: _getDifficultyColor(score.difficulty!),
                                 fontSize: 10,
@@ -429,7 +444,7 @@ class _StatsScreenState extends State<StatsScreen>
     );
   }
 
-  Widget _buildDifficultyTab() {
+  Widget _buildDifficultyTab(AppLocalizations l) {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: Difficulty.values.length,
@@ -477,7 +492,7 @@ class _StatsScreenState extends State<StatsScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              difficulty.name,
+                              _getDifficultyName(l, difficulty),
                               style: const TextStyle(
                                 color: AppColors.textPrimary,
                                 fontSize: 18,
@@ -485,7 +500,7 @@ class _StatsScreenState extends State<StatsScreen>
                               ),
                             ),
                             Text(
-                              '${scores.length} o\'yin o\'ynalgan',
+                              l.gamesPlayedCount(scores.length),
                               style: const TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 12,
@@ -506,9 +521,9 @@ class _StatsScreenState extends State<StatsScreen>
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            const Text(
-                              'Eng yaxshi',
-                              style: TextStyle(
+                            Text(
+                              l.best,
+                              style: const TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 10,
                               ),
@@ -550,10 +565,10 @@ class _StatsScreenState extends State<StatsScreen>
                         ),
                   ] else ...[
                     const SizedBox(height: 12),
-                    const Center(
+                    Center(
                       child: Text(
-                        'Bu darajada hali o\'ynalmagan',
-                        style: TextStyle(
+                        l.notPlayedYet,
+                        style: const TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 14,
                           fontStyle: FontStyle.italic,
@@ -662,41 +677,42 @@ class _StatsScreenState extends State<StatsScreen>
   }
 
   void _showClearDialog() {
+    final l = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Statistikani tozalash',
-          style: TextStyle(color: AppColors.textPrimary),
+        title: Text(
+          l.clearStats,
+          style: const TextStyle(color: AppColors.textPrimary),
         ),
-        content: const Text(
-          'Barcha natijalar va statistikalar o\'chiriladi. Bu amalni qaytarib bo\'lmaydi.',
-          style: TextStyle(color: AppColors.textSecondary),
+        content: Text(
+          l.clearStatsConfirm,
+          style: const TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Bekor qilish',
-              style: TextStyle(color: AppColors.textSecondary),
+            child: Text(
+              l.cancel,
+              style: const TextStyle(color: AppColors.textSecondary),
             ),
           ),
           ElevatedButton(
             onPressed: () async {
               await _scoreService.clearScores();
               Navigator.pop(context);
-              await _loadData(); // Reload data
+              await _loadData();
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Statistika tozalandi'),
+                SnackBar(
+                  content: Text(l.statsCleared),
                   backgroundColor: AppColors.success,
                 ),
               );
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-            child: const Text('Tozalash'),
+            child: Text(l.clear),
           ),
         ],
       ),

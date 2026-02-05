@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_application_1/screens/training_screen.dart';
-import 'package:flutter_application_1/services/admob_service.dart';
 import 'package:flutter_application_1/widgets/ad_banner.dart';
+import 'package:flutter_application_1/l10n/app_localizations.dart';
 import '../utils/app_colors.dart';
 import '../models/difficulty.dart';
 
@@ -55,11 +55,38 @@ class _DifficultySelectionScreenState extends State<DifficultySelectionScreen>
     super.dispose();
   }
 
+  String _getDifficultyName(AppLocalizations l, Difficulty difficulty) {
+    switch (difficulty) {
+      case Difficulty.easy:
+        return l.diffEasy;
+      case Difficulty.medium:
+        return l.diffMedium;
+      case Difficulty.hard:
+        return l.diffHard;
+      case Difficulty.expert:
+        return l.diffExpert;
+    }
+  }
+
+  String _getDifficultyDescription(AppLocalizations l, Difficulty difficulty) {
+    switch (difficulty) {
+      case Difficulty.easy:
+        return l.diffEasyDesc;
+      case Difficulty.medium:
+        return l.diffMediumDesc;
+      case Difficulty.hard:
+        return l.diffHardDesc;
+      case Difficulty.expert:
+        return l.diffExpertDesc;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context)!;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Qiyinlik Darajasi'),
+        title: Text(l.difficultyTitle),
         backgroundColor: AppColors.primary,
         elevation: 0,
       ),
@@ -76,22 +103,22 @@ class _DifficultySelectionScreenState extends State<DifficultySelectionScreen>
             // Header
             Container(
               padding: const EdgeInsets.all(20),
-              child: const Column(
+              child: Column(
                 children: [
-                  Icon(Icons.military_tech, size: 60, color: AppColors.accent),
-                  SizedBox(height: 16),
+                  const Icon(Icons.military_tech, size: 60, color: AppColors.accent),
+                  const SizedBox(height: 16),
                   Text(
-                    'Qiyinlik darajasini tanlang',
-                    style: TextStyle(
+                    l.selectDifficulty,
+                    style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
-                    'Har bir daraja o\'ziga xos qiyinchilikka ega',
-                    style: TextStyle(
+                    l.difficultyInfo,
+                    style: const TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 14,
                     ),
@@ -109,7 +136,7 @@ class _DifficultySelectionScreenState extends State<DifficultySelectionScreen>
                   final difficulty = Difficulty.values[index];
                   return SlideTransition(
                     position: _slideAnimations[index],
-                    child: _buildDifficultyCard(difficulty, index),
+                    child: _buildDifficultyCard(l, difficulty, index),
                   );
                 },
               ),
@@ -123,7 +150,7 @@ class _DifficultySelectionScreenState extends State<DifficultySelectionScreen>
     );
   }
 
-  Widget _buildDifficultyCard(Difficulty difficulty, int index) {
+  Widget _buildDifficultyCard(AppLocalizations l, Difficulty difficulty, int index) {
     final colors = [
       [AppColors.success, AppColors.success.withOpacity(0.7)], // Easy
       [AppColors.info, AppColors.info.withOpacity(0.7)], // Medium
@@ -181,7 +208,7 @@ class _DifficultySelectionScreenState extends State<DifficultySelectionScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            difficulty.name,
+                            _getDifficultyName(l, difficulty),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 24,
@@ -189,7 +216,7 @@ class _DifficultySelectionScreenState extends State<DifficultySelectionScreen>
                             ),
                           ),
                           Text(
-                            difficulty.description,
+                            _getDifficultyDescription(l, difficulty),
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.9),
                               fontSize: 14,
@@ -218,21 +245,21 @@ class _DifficultySelectionScreenState extends State<DifficultySelectionScreen>
                   child: Column(
                     children: [
                       _buildStatRow(
-                        'Nishon vaqti:',
+                        l.targetTime,
                         '${difficulty.targetTimeout}s',
                       ),
                       _buildStatRow(
-                        'Nishon hajmi:',
+                        l.targetSize,
                         '${difficulty.targetSize.toInt()}px',
                       ),
                       _buildStatRow(
-                        'Ball ko\'paytiruvchi:',
+                        l.scoreMultiplier,
                         '${difficulty.scoreMultiplier}x',
                       ),
                       if (difficulty.hasMovingTargets)
-                        _buildStatRow('Harakat qiluvchi nishonlar:', 'Ha'),
+                        _buildStatRow(l.movingTargets, l.yes),
                       if (difficulty.hasMultipleTargets)
-                        _buildStatRow('Ko\'p nishonlar:', 'Ha'),
+                        _buildStatRow(l.multipleTargets, l.yes),
                     ],
                   ),
                 ),
@@ -273,58 +300,13 @@ class _DifficultySelectionScreenState extends State<DifficultySelectionScreen>
   void _selectDifficulty(Difficulty difficulty) {
     HapticFeedback.mediumImpact();
 
-    // Show selection animation
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Center(
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-              ),
-              SizedBox(height: 16),
-              Text(
-                'O\'yin tayyorlanmoqda...',
-                style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
-              ),
-            ],
-          ),
-        ),
+    // HomeScreen dan interstitial allaqachon ko'rsatilgan
+    // Shuning uchun bu yerda to'g'ridan-to'g'ri o'yinga o'tish
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TrainingScreen(difficulty: difficulty),
       ),
     );
-
-    // Show interstitial ad, then navigate
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (AdMobService.isInterstitialAdReady) {
-        AdMobService.showInterstitialAd().then((_) {
-          Navigator.pop(context); // Close loading dialog
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TrainingScreen(difficulty: difficulty),
-            ),
-          );
-        });
-      } else {
-        // If ad not ready, just navigate after delay
-        Future.delayed(const Duration(milliseconds: 1500), () {
-          Navigator.pop(context); // Close loading dialog
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TrainingScreen(difficulty: difficulty),
-            ),
-          );
-        });
-      }
-    });
   }
 }
