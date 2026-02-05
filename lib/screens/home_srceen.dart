@@ -18,6 +18,7 @@ import 'package:flutter_application_1/screens/uc_shop_screen.dart';
 import 'package:flutter_application_1/models/announcement_model.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_application_1/l10n/app_localizations.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import 'package:flutter_application_1/main.dart';
 import '../utils/app_colors.dart';
 
@@ -152,6 +153,7 @@ class _HomeScreenState extends State<HomeScreen>
   void dispose() {
     _animationController.dispose();
     _scrollController.dispose();
+    _announcementPageController.dispose();
     super.dispose();
   }
 
@@ -393,76 +395,15 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                           child: Column(
                             children: [
-                              // Logo/Title section
-                              Container(
-                                margin: EdgeInsets.only(
-                                  bottom: isSmallScreen ? 30 : 40,
-                                ),
-                                child: Column(
-                                  children: [
-                                    TweenAnimationBuilder<double>(
-                                      tween: Tween(begin: 0.0, end: 1.0),
-                                      duration: const Duration(
-                                        milliseconds: 1200,
-                                      ),
-                                      builder: (context, value, child) {
-                                        return Transform.scale(
-                                          scale: 0.3 + (0.7 * value),
-                                          child: Transform.rotate(
-                                            angle: (1.0 - value) * 2.0,
-                                            child: Container(
-                                              width: isSmallScreen ? 80 : 100,
-                                              height: isSmallScreen ? 80 : 100,
-                                              decoration: BoxDecoration(
-                                                gradient: LinearGradient(
-                                                  colors: [
-                                                    AppColors.primary,
-                                                    Colors.orange.shade700,
-                                                    Colors.red.shade600,
-                                                  ],
-                                                ),
-                                                shape: BoxShape.circle,
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: AppColors.primary
-                                                        .withOpacity(0.5),
-                                                    blurRadius: 20,
-                                                    spreadRadius: 5,
-                                                  ),
-                                                ],
-                                              ),
-                                              child: Icon(
-                                                Icons.gps_fixed,
-                                                size: isSmallScreen ? 40 : 50,
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                    SizedBox(height: isSmallScreen ? 12 : 16),
-                                    Text(
-                                      l.reaction,
-                                      style: TextStyle(
-                                        fontSize: isSmallScreen ? 24 : 28,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.textPrimary,
-                                        letterSpacing: 2,
-                                      ),
-                                    ),
-                                    Text(
-                                      l.training,
-                                      style: TextStyle(
-                                        fontSize: isSmallScreen ? 14 : 16,
-                                        fontWeight: FontWeight.w300,
-                                        color: AppColors.accent,
-                                        letterSpacing: 4,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                              // Agar e'lonlar bo'lsa - e'lonlar, bo'lmasa - logo
+                              if (_announcements.isNotEmpty) ...[
+                                _buildAnnouncementsSection(isSmallScreen, l),
+                                SizedBox(height: isSmallScreen ? 16 : 20),
+                              ] else ...[
+                                // Logo/Title section - e'lonlar bo'lmaganda
+                                _buildLogoSection(isSmallScreen, l),
+                                SizedBox(height: isSmallScreen ? 20 : 30),
+                              ],
 
                               // Stats cards
                               if (!_isLoading) ...[
@@ -489,12 +430,6 @@ class _HomeScreenState extends State<HomeScreen>
                                     ),
                                   ],
                                 ),
-                                SizedBox(height: isSmallScreen ? 20 : 30),
-                              ],
-
-                              // Announcements Section
-                              if (_announcements.isNotEmpty) ...[
-                                _buildAnnouncementsSection(isSmallScreen, l),
                                 SizedBox(height: isSmallScreen ? 20 : 30),
                               ],
 
@@ -784,10 +719,12 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _navigateToUCShop() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const UCShopScreen()),
-    ).then((_) => _loadData());
+    _showInterstitialAndNavigate(() {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const UCShopScreen()),
+      ).then((_) => _loadData());
+    });
   }
 
   void _navigateToAdmin() {
@@ -862,30 +799,124 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
+  int _currentAnnouncementIndex = 0;
+  final PageController _announcementPageController = PageController();
+
+  Widget _buildLogoSection(bool isSmallScreen, AppLocalizations l) {
+    return Container(
+      margin: EdgeInsets.only(bottom: isSmallScreen ? 10 : 20),
+      child: Column(
+        children: [
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 1200),
+            builder: (context, value, child) {
+              return Transform.scale(
+                scale: 0.3 + (0.7 * value),
+                child: Transform.rotate(
+                  angle: (1.0 - value) * 2.0,
+                  child: Container(
+                    width: isSmallScreen ? 80 : 100,
+                    height: isSmallScreen ? 80 : 100,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.primary,
+                          Colors.orange.shade700,
+                          Colors.red.shade600,
+                        ],
+                      ),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withOpacity(0.5),
+                          blurRadius: 20,
+                          spreadRadius: 5,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.gps_fixed,
+                      size: isSmallScreen ? 40 : 50,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          SizedBox(height: isSmallScreen ? 12 : 16),
+          Text(
+            l.reaction,
+            style: TextStyle(
+              fontSize: isSmallScreen ? 24 : 28,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+              letterSpacing: 2,
+            ),
+          ),
+          Text(
+            l.training,
+            style: TextStyle(
+              fontSize: isSmallScreen ? 14 : 16,
+              fontWeight: FontWeight.w300,
+              color: AppColors.accent,
+              letterSpacing: 4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAnnouncementsSection(bool isSmallScreen, AppLocalizations l) {
+    final cardHeight = isSmallScreen ? 200.0 : 240.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Header
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              l.news,
-              style: TextStyle(
-                fontSize: isSmallScreen ? 16 : 18,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-                letterSpacing: 1,
-              ),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [AppColors.primary, Colors.orange.shade600],
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.campaign, color: Colors.white, size: 18),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  l.news,
+                  style: TextStyle(
+                    fontSize: isSmallScreen ? 18 : 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
             ),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primary.withOpacity(0.2),
+                    AppColors.accent.withOpacity(0.2),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
               ),
               child: Text(
-                '${_announcements.length}',
+                '${_announcements.length} ${l.news.toLowerCase()}',
                 style: TextStyle(
                   color: AppColors.primary,
                   fontSize: isSmallScreen ? 11 : 12,
@@ -895,157 +926,298 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ],
         ),
-        SizedBox(height: isSmallScreen ? 10 : 12),
+        SizedBox(height: isSmallScreen ? 12 : 16),
+
+        // Carousel
         SizedBox(
-          height: isSmallScreen ? 160 : 180,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
+          height: cardHeight,
+          child: PageView.builder(
+            controller: _announcementPageController,
             itemCount: _announcements.length,
+            onPageChanged: (index) {
+              setState(() => _currentAnnouncementIndex = index);
+            },
             itemBuilder: (context, index) {
-              return _buildAnnouncementCard(
-                _announcements[index],
-                isSmallScreen,
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: _buildAnnouncementCard(_announcements[index], isSmallScreen),
               );
             },
           ),
         ),
+
+        // Page indicators
+        if (_announcements.length > 1) ...[
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(_announcements.length, (index) {
+              final isActive = index == _currentAnnouncementIndex;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: isActive ? 24 : 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  gradient: isActive
+                      ? LinearGradient(
+                          colors: [AppColors.primary, Colors.orange.shade600],
+                        )
+                      : null,
+                  color: isActive ? null : AppColors.textSecondary.withOpacity(0.3),
+                ),
+              );
+            }),
+          ),
+        ],
       ],
     );
   }
 
   Widget _buildAnnouncementCard(AnnouncementModel announcement, bool isSmallScreen) {
-    final cardWidth = MediaQuery.of(context).size.width * 0.75;
-
     Color cardColor;
     IconData cardIcon;
+    List<Color> gradientColors;
+
     switch (announcement.type) {
       case 'youtube':
         cardColor = Colors.red;
         cardIcon = Icons.play_circle_fill;
+        gradientColors = [Colors.red.shade700, Colors.red.shade900];
         break;
       case 'promo':
         cardColor = Colors.purple;
         cardIcon = Icons.local_offer;
+        gradientColors = [Colors.purple.shade600, Colors.purple.shade900];
         break;
       case 'update':
         cardColor = Colors.blue;
         cardIcon = Icons.system_update;
+        gradientColors = [Colors.blue.shade600, Colors.blue.shade900];
         break;
       case 'image':
         cardColor = Colors.orange;
         cardIcon = Icons.image;
+        gradientColors = [Colors.orange.shade600, Colors.orange.shade900];
         break;
       case 'ucShop':
         cardColor = Colors.teal;
         cardIcon = Icons.shopping_cart;
+        gradientColors = [Colors.teal.shade600, Colors.teal.shade900];
         break;
       default: // news
         cardColor = AppColors.primary;
         cardIcon = Icons.newspaper;
+        gradientColors = [AppColors.primary, Colors.orange.shade800];
     }
 
+    final hasImage = announcement.imageUrl != null && announcement.imageUrl!.isNotEmpty;
+    final isYoutube = announcement.type == 'youtube';
+
     return Container(
-      width: cardWidth,
-      margin: const EdgeInsets.only(right: 12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            cardColor.withOpacity(0.15),
-            cardColor.withOpacity(0.05),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cardColor.withOpacity(0.3)),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: cardColor.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => _onAnnouncementTap(announcement),
-          child: Padding(
-            padding: EdgeInsets.all(isSmallScreen ? 14 : 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _onAnnouncementTap(announcement),
+            child: Stack(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: cardColor.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
+                // Background
+                if (hasImage)
+                  Positioned.fill(
+                    child: Image.network(
+                      announcement.imageUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: gradientColors,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        ),
                       ),
-                      child: Icon(cardIcon, color: cardColor, size: 20),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
+                  )
+                else
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: gradientColors,
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // Dark overlay for readability
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.black.withOpacity(hasImage ? 0.6 : 0.3),
+                          Colors.black.withOpacity(hasImage ? 0.8 : 0.5),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Content
+                Padding(
+                  padding: EdgeInsets.all(isSmallScreen ? 16 : 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Top row: Badge and type
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: cardColor,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(cardIcon, color: Colors.white, size: 14),
+                                const SizedBox(width: 6),
+                                Text(
+                                  AnnouncementModel.getTypeName(announcement.type),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Spacer(),
+                          if (isYoutube)
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.play_arrow,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                        ],
+                      ),
+
+                      const Spacer(),
+
+                      // Title
+                      Text(
                         announcement.title,
                         style: TextStyle(
-                          color: AppColors.textPrimary,
+                          color: Colors.white,
                           fontWeight: FontWeight.bold,
-                          fontSize: isSmallScreen ? 14 : 16,
+                          fontSize: isSmallScreen ? 18 : 22,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withOpacity(0.5),
+                              blurRadius: 4,
+                            ),
+                          ],
                         ),
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  ],
+
+                      // Description
+                      if (announcement.description != null &&
+                          announcement.description!.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          announcement.description!,
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: isSmallScreen ? 13 : 14,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+
+                      // Action button
+                      if (announcement.actionText != null &&
+                          announcement.actionText!.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                announcement.actionText!,
+                                style: TextStyle(
+                                  color: cardColor,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Icon(Icons.arrow_forward, color: cardColor, size: 16),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-                if (announcement.description != null &&
-                    announcement.description!.isNotEmpty) ...[
-                  SizedBox(height: isSmallScreen ? 8 : 10),
-                  Expanded(
-                    child: Text(
-                      announcement.description!,
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: isSmallScreen ? 12 : 13,
-                      ),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-                if (announcement.imageUrl != null &&
-                    announcement.imageUrl!.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        announcement.imageUrl!,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+
+                // YouTube play overlay
+                if (isYoutube)
+                  Positioned.fill(
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.9),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 10,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.play_arrow,
+                          color: Colors.white,
+                          size: 40,
+                        ),
                       ),
                     ),
                   ),
-                ],
-                if (announcement.actionText != null &&
-                    announcement.actionText!.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      announcement.actionText!,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -1061,7 +1233,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     if (announcement.type == 'youtube' && announcement.videoUrl != null) {
-      _launchUrl(announcement.videoUrl!);
+      _showYouTubePlayer(announcement.videoUrl!, announcement.title);
       return;
     }
 
@@ -1072,65 +1244,246 @@ class _HomeScreenState extends State<HomeScreen>
 
     // Show detail dialog for news/promo/image types
     if (announcement.description != null || announcement.imageUrl != null) {
-      final l = AppLocalizations.of(context)!;
-      showDialog(
-        context: context,
-        builder: (ctx) => Dialog(
-          backgroundColor: AppColors.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  announcement.title,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
+      _showAnnouncementDetail(announcement);
+    }
+  }
+
+  String? _extractYouTubeId(String url) {
+    // Handle various YouTube URL formats
+    final regExp = RegExp(
+      r'(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})',
+      caseSensitive: false,
+    );
+    final match = regExp.firstMatch(url);
+    return match?.group(1);
+  }
+
+  void _showYouTubePlayer(String videoUrl, String title) {
+    final videoId = _extractYouTubeId(videoUrl);
+    if (videoId == null) {
+      _launchUrl(videoUrl);
+      return;
+    }
+
+    final controller = YoutubePlayerController.fromVideoId(
+      videoId: videoId,
+      autoPlay: true,
+      params: const YoutubePlayerParams(
+        showControls: true,
+        showFullscreenButton: true,
+        mute: false,
+      ),
+    );
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 600),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.red.shade700, Colors.red.shade900],
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
                   ),
                 ),
-                if (announcement.imageUrl != null) ...[
-                  const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      announcement.imageUrl!,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                child: Row(
+                  children: [
+                    const Icon(Icons.play_circle_fill, color: Colors.white),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ),
-                ],
-                if (announcement.description != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    announcement.description!,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 14,
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () {
+                        controller.close();
+                        Navigator.pop(ctx);
+                      },
                     ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(ctx),
-                    child: Text(
-                      l.close,
-                      style: const TextStyle(color: AppColors.primary),
-                    ),
+                  ],
+                ),
+              ),
+              // Video Player
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(16),
+                  bottomRight: Radius.circular(16),
+                ),
+                child: AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: YoutubePlayer(
+                    controller: controller,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-      );
-    }
+      ),
+    ).then((_) => controller.close());
+  }
+
+  void _showAnnouncementDetail(AnnouncementModel announcement) {
+    final l = AppLocalizations.of(context)!;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(20),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Image header
+              if (announcement.imageUrl != null &&
+                  announcement.imageUrl!.isNotEmpty)
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                  child: Image.network(
+                    announcement.imageUrl!,
+                    width: double.infinity,
+                    height: 200,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      height: 100,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [AppColors.primary, Colors.orange.shade700],
+                        ),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.image, color: Colors.white54, size: 40),
+                      ),
+                    ),
+                  ),
+                ),
+              // Content
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Type badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          AnnouncementModel.getTypeName(announcement.type),
+                          style: const TextStyle(
+                            color: AppColors.primary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // Title
+                      Text(
+                        announcement.title,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                        ),
+                      ),
+                      if (announcement.description != null &&
+                          announcement.description!.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          announcement.description!,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 15,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              // Footer
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: AppColors.textSecondary.withOpacity(0.2),
+                    ),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (announcement.actionUrl != null &&
+                        announcement.actionUrl!.isNotEmpty)
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _launchUrl(announcement.actionUrl!);
+                        },
+                        icon: const Icon(Icons.open_in_new, size: 18),
+                        label: Text(announcement.actionText ?? 'Ochish'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                        ),
+                      ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: Text(
+                        l.close,
+                        style: const TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _launchUrl(String url) async {

@@ -31,14 +31,16 @@ class FirestoreService {
   String? _adminCacheUid;
 
   static const Map<int, int> ucExchangeRates = {
-    8500: 60,      // 10 UC
-    13000: 120,     // 20 UC
-    18000: 325,    // 325 UC
-    22000: 660,    // 660 UC    // 660 UC
-    40000: 1200,   // 1200 UC
-    60000: 2500,   // 2500 UC
-    80000: 3000,   // 3000 UC
-    160000: 5000,  // 5000 UC
+    8500: 60, // 10 UC
+    13000: 120, // 20 UC
+    16000: 180, // 20 UC
+
+    18000: 325, // 325 UC
+    22000: 660, // 660 UC    // 660 UC
+    40000: 1200, // 1200 UC
+    60000: 2500, // 2500 UC
+    80000: 3000, // 3000 UC
+    160000: 5000, // 5000 UC
   };
 
   String? get _currentUid => FirebaseAuth.instance.currentUser?.uid;
@@ -117,8 +119,11 @@ class FirestoreService {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     if (lastReset == null) return true;
-    return DateTime(lastReset.year, lastReset.month, lastReset.day)
-        .isBefore(today);
+    return DateTime(
+      lastReset.year,
+      lastReset.month,
+      lastReset.day,
+    ).isBefore(today);
   }
 
   /// Tranzaksiya ichida daily reset qiladi (agar kerak bo'lsa).
@@ -180,9 +185,7 @@ class FirestoreService {
         final currentCoins = snapshot.data()?['coins'] ?? 0;
         if (currentCoins < amount) return false;
 
-        transaction.update(docRef, {
-          'coins': FieldValue.increment(-amount),
-        });
+        transaction.update(docRef, {'coins': FieldValue.increment(-amount)});
         return true;
       });
     } catch (e) {
@@ -229,11 +232,18 @@ class FirestoreService {
   }
 
   /// O'yin natijasiga qarab coin qo'shish (accuracy 0-100 foiz)
-  Future<bool> addCoinsForGame(String uid, double accuracy, {bool isMiniPubg = false}) async {
+  Future<bool> addCoinsForGame(
+    String uid,
+    double accuracy, {
+    bool isMiniPubg = false,
+  }) async {
     try {
-      final coinsEarned =
-          (accuracy / 10).round().clamp(0, maxCoinsPerGame);
-      return await addCoinsForGameDirect(uid, coinsEarned, isMiniPubg: isMiniPubg);
+      final coinsEarned = (accuracy / 10).round().clamp(0, maxCoinsPerGame);
+      return await addCoinsForGameDirect(
+        uid,
+        coinsEarned,
+        isMiniPubg: isMiniPubg,
+      );
     } catch (e) {
       print('Error adding coins for game: $e');
       return false;
@@ -242,10 +252,18 @@ class FirestoreService {
 
   /// To'g'ridan-to'g'ri coin miqdorini qo'shish
   /// [isMiniPubg] = true bo'lsa Mini PUBG (20 limit), false bo'lsa Reaksiya (30 limit)
-  Future<bool> addCoinsForGameDirect(String uid, int coins, {bool isMiniPubg = false}) async {
+  Future<bool> addCoinsForGameDirect(
+    String uid,
+    int coins, {
+    bool isMiniPubg = false,
+  }) async {
     try {
-      final fieldName = isMiniPubg ? 'dailyMiniPubgGames' : 'dailyReactionGames';
-      final maxGames = isMiniPubg ? maxDailyMiniPubgGames : maxDailyReactionGames;
+      final fieldName = isMiniPubg
+          ? 'dailyMiniPubgGames'
+          : 'dailyReactionGames';
+      final maxGames = isMiniPubg
+          ? maxDailyMiniPubgGames
+          : maxDailyReactionGames;
 
       return await _db.runTransaction((transaction) async {
         final docRef = _db.collection('users').doc(uid);
@@ -288,7 +306,10 @@ class FirestoreService {
 
   /// Daily status olish - 1 ta read bilan
   /// [isMiniPubg] = true bo'lsa Mini PUBG statusi, false bo'lsa Reaksiya
-  Future<Map<String, dynamic>> getDailyStatus(String uid, {bool isMiniPubg = false}) async {
+  Future<Map<String, dynamic>> getDailyStatus(
+    String uid, {
+    bool isMiniPubg = false,
+  }) async {
     try {
       final doc = await _db.collection('users').doc(uid).get();
       if (!doc.exists) return {};
@@ -315,7 +336,9 @@ class FirestoreService {
       _cacheTime = DateTime.now();
 
       final gamesPlayed = isMiniPubg ? dailyMiniPubgGames : dailyReactionGames;
-      final maxGames = isMiniPubg ? maxDailyMiniPubgGames : maxDailyReactionGames;
+      final maxGames = isMiniPubg
+          ? maxDailyMiniPubgGames
+          : maxDailyReactionGames;
 
       return {
         'adsWatched': dailyAds,
@@ -359,14 +382,18 @@ class FirestoreService {
     String pubgId,
   ) async {
     try {
-      print('DEBUG [Exchange]: ========== UC ALMASHTIRISH BOSHLANDI ==========');
+      print(
+        'DEBUG [Exchange]: ========== UC ALMASHTIRISH BOSHLANDI ==========',
+      );
       print('DEBUG [Exchange]: User UID: $uid');
       print('DEBUG [Exchange]: Coins: $coins, UC: $ucAmount');
       print('DEBUG [Exchange]: Nickname: $nickname, PUBG ID: $pubgId');
 
       final spent = await spendCoins(uid, coins);
       if (!spent) {
-        print('DEBUG [Exchange]: ❌ Coinlar sarflanmadi (yetarli emas yoki xato)');
+        print(
+          'DEBUG [Exchange]: ❌ Coinlar sarflanmadi (yetarli emas yoki xato)',
+        );
         return false;
       }
       print('DEBUG [Exchange]: ✓ $coins coin sarflandi');
@@ -394,7 +421,9 @@ class FirestoreService {
         'totalUCExchanged': FieldValue.increment(ucAmount),
       });
       print('DEBUG [Exchange]: ✓ totalUCExchanged yangilandi');
-      print('DEBUG [Exchange]: ========== UC ALMASHTIRISH TUGADI (SUCCESS) ==========\n');
+      print(
+        'DEBUG [Exchange]: ========== UC ALMASHTIRISH TUGADI (SUCCESS) ==========\n',
+      );
 
       return true;
     } catch (e, stackTrace) {
@@ -413,9 +442,11 @@ class FirestoreService {
         .orderBy('createdAt', descending: true)
         .limit(20)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => ExchangeModel.fromFirestore(doc))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => ExchangeModel.fromFirestore(doc))
+              .toList(),
+        );
   }
 
   Future<List<ExchangeModel>> getExchangeHistory(String uid) async {
@@ -491,13 +522,17 @@ class FirestoreService {
         .where('isActive', isEqualTo: true)
         .orderBy('order')
         .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => TaskModel.fromFirestore(doc)).toList());
+        .map(
+          (snapshot) =>
+              snapshot.docs.map((doc) => TaskModel.fromFirestore(doc)).toList(),
+        );
   }
 
   Future<List<TaskModel>> getActiveTasks() async {
     try {
-      print('DEBUG [FirestoreService]: tasks collection dan o\'qish boshlandi...');
+      print(
+        'DEBUG [FirestoreService]: tasks collection dan o\'qish boshlandi...',
+      );
 
       // Avval composite index bilan urinish (isActive + order)
       try {
@@ -507,7 +542,9 @@ class FirestoreService {
             .orderBy('order')
             .get();
 
-        print('DEBUG [FirestoreService]: ${snapshot.docs.length} ta faol vazifa topildi (index bilan)');
+        print(
+          'DEBUG [FirestoreService]: ${snapshot.docs.length} ta faol vazifa topildi (index bilan)',
+        );
         final tasks = snapshot.docs
             .map((doc) => TaskModel.fromFirestore(doc))
             .toList();
@@ -515,7 +552,9 @@ class FirestoreService {
         return tasks;
       } catch (indexError) {
         // Agar composite index yo'q bo'lsa, faqat isActive filter ishlatamiz
-        print('DEBUG [FirestoreService]: ⚠️ Composite index yo\'q, fallback query ishlatilmoqda...');
+        print(
+          'DEBUG [FirestoreService]: ⚠️ Composite index yo\'q, fallback query ishlatilmoqda...',
+        );
         print('DEBUG [FirestoreService]: Index xatosi: $indexError');
 
         final snapshot = await _db
@@ -523,7 +562,9 @@ class FirestoreService {
             .where('isActive', isEqualTo: true)
             .get();
 
-        print('DEBUG [FirestoreService]: ${snapshot.docs.length} ta faol vazifa topildi (fallback)');
+        print(
+          'DEBUG [FirestoreService]: ${snapshot.docs.length} ta faol vazifa topildi (fallback)',
+        );
 
         // In-memory sort qilamiz
         final tasks = snapshot.docs
@@ -536,15 +577,21 @@ class FirestoreService {
         return tasks;
       }
     } catch (e, stackTrace) {
-      print('DEBUG [FirestoreService]: ❌ JIDDIY XATOLIK vazifalarni yuklashda!');
+      print(
+        'DEBUG [FirestoreService]: ❌ JIDDIY XATOLIK vazifalarni yuklashda!',
+      );
       print('DEBUG [FirestoreService]: Xato: $e');
       print('DEBUG [FirestoreService]: Stack trace: $stackTrace');
 
       // Oxirgi urinish - hech qanday filter yo'q
       try {
-        print('DEBUG [FirestoreService]: Oxirgi urinish - barcha vazifalarni olish...');
+        print(
+          'DEBUG [FirestoreService]: Oxirgi urinish - barcha vazifalarni olish...',
+        );
         final snapshot = await _db.collection('tasks').get();
-        print('DEBUG [FirestoreService]: Jami ${snapshot.docs.length} ta vazifa topildi (filter yo\'qsiz)');
+        print(
+          'DEBUG [FirestoreService]: Jami ${snapshot.docs.length} ta vazifa topildi (filter yo\'qsiz)',
+        );
 
         final tasks = snapshot.docs
             .map((doc) => TaskModel.fromFirestore(doc))
@@ -552,7 +599,9 @@ class FirestoreService {
             .toList();
 
         tasks.sort((a, b) => a.order.compareTo(b.order));
-        print('DEBUG [FirestoreService]: ${tasks.length} ta faol vazifa filtrlandi va sort qilindi');
+        print(
+          'DEBUG [FirestoreService]: ${tasks.length} ta faol vazifa filtrlandi va sort qilindi',
+        );
 
         return tasks;
       } catch (finalError) {
@@ -565,13 +614,14 @@ class FirestoreService {
 
   Future<bool> completeTask(String uid, String taskId, int reward) async {
     try {
-      final today =
-          DateTime.now().toIso8601String().substring(0, 10);
+      final today = DateTime.now().toIso8601String().substring(0, 10);
       final completionId = '${uid}_${taskId}_$today';
 
       // Tekshirish — bugun bajarilganmi
-      final existing =
-          await _db.collection('task_completions').doc(completionId).get();
+      final existing = await _db
+          .collection('task_completions')
+          .doc(completionId)
+          .get();
       if (existing.exists) return false;
 
       final completion = TaskCompletionModel(
@@ -598,11 +648,12 @@ class FirestoreService {
 
   Future<bool> isTaskCompletedToday(String uid, String taskId) async {
     try {
-      final today =
-          DateTime.now().toIso8601String().substring(0, 10);
+      final today = DateTime.now().toIso8601String().substring(0, 10);
       final completionId = '${uid}_${taskId}_$today';
-      final doc =
-          await _db.collection('task_completions').doc(completionId).get();
+      final doc = await _db
+          .collection('task_completions')
+          .doc(completionId)
+          .get();
       return doc.exists;
     } catch (e) {
       print('Error checking task completion: $e');
@@ -612,8 +663,7 @@ class FirestoreService {
 
   Future<Set<String>> getCompletedTaskIdsToday(String uid) async {
     try {
-      final today =
-          DateTime.now().toIso8601String().substring(0, 10);
+      final today = DateTime.now().toIso8601String().substring(0, 10);
       final snapshot = await _db
           .collection('task_completions')
           .where('uid', isEqualTo: uid)
@@ -640,8 +690,11 @@ class FirestoreService {
       final today = DateTime(now.year, now.month, now.day);
 
       if (lastBonus != null) {
-        final lastBonusDay =
-            DateTime(lastBonus.year, lastBonus.month, lastBonus.day);
+        final lastBonusDay = DateTime(
+          lastBonus.year,
+          lastBonus.month,
+          lastBonus.day,
+        );
         if (!lastBonusDay.isBefore(today)) {
           // Bugun allaqachon bonus olgan
           return 0;
@@ -652,8 +705,11 @@ class FirestoreService {
       int currentStreak = data['loginStreak'] ?? 0;
       if (lastBonus != null) {
         final yesterday = today.subtract(const Duration(days: 1));
-        final lastBonusDay =
-            DateTime(lastBonus.year, lastBonus.month, lastBonus.day);
+        final lastBonusDay = DateTime(
+          lastBonus.year,
+          lastBonus.month,
+          lastBonus.day,
+        );
         if (lastBonusDay.isAtSameMomentAs(yesterday)) {
           currentStreak++;
         } else {
@@ -741,18 +797,23 @@ class FirestoreService {
 
   Future<List<AppUser>> getAllUsers({String? searchQuery}) async {
     try {
-      Query query = _db.collection('users').orderBy('lastLoginAt', descending: true);
+      Query query = _db
+          .collection('users')
+          .orderBy('lastLoginAt', descending: true);
 
       final snapshot = await query.get();
-      var users =
-          snapshot.docs.map((doc) => AppUser.fromFirestore(doc)).toList();
+      var users = snapshot.docs
+          .map((doc) => AppUser.fromFirestore(doc))
+          .toList();
 
       if (searchQuery != null && searchQuery.isNotEmpty) {
         final q = searchQuery.toLowerCase();
         users = users
-            .where((u) =>
-                u.displayName.toLowerCase().contains(q) ||
-                u.email.toLowerCase().contains(q))
+            .where(
+              (u) =>
+                  u.displayName.toLowerCase().contains(q) ||
+                  u.email.toLowerCase().contains(q),
+            )
             .toList();
       }
 
@@ -779,8 +840,10 @@ class FirestoreService {
       final today = DateTime(now.year, now.month, now.day);
       final snapshot = await _db
           .collection('users')
-          .where('lastLoginAt',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(today))
+          .where(
+            'lastLoginAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(today),
+          )
           .count()
           .get();
       return snapshot.count ?? 0;
@@ -803,10 +866,10 @@ class FirestoreService {
           .collection('exchanges')
           .doc(exchangeId)
           .update({
-        'status': status,
-        'processedAt': FieldValue.serverTimestamp(),
-        'processedBy': adminUid,
-      });
+            'status': status,
+            'processedAt': FieldValue.serverTimestamp(),
+            'processedBy': adminUid,
+          });
 
       // Rad etilgan bo'lsa, coinlarni qaytarish
       if (status == 'rejected') {
@@ -832,10 +895,14 @@ class FirestoreService {
 
   Future<List<Map<String, dynamic>>> getAllPendingExchanges() async {
     try {
-      print('DEBUG [Admin-Exchange]: ========== PENDING UC SO\'ROVLAR YUKLASH BOSHLANDI ==========');
+      print(
+        'DEBUG [Admin-Exchange]: ========== PENDING UC SO\'ROVLAR YUKLASH BOSHLANDI ==========',
+      );
 
       final usersSnapshot = await _db.collection('users').get();
-      print('DEBUG [Admin-Exchange]: Jami ${usersSnapshot.docs.length} ta user topildi');
+      print(
+        'DEBUG [Admin-Exchange]: Jami ${usersSnapshot.docs.length} ta user topildi',
+      );
 
       final List<Map<String, dynamic>> allExchanges = [];
       int totalChecked = 0;
@@ -854,13 +921,17 @@ class FirestoreService {
 
           totalChecked++;
           if (exchangesSnapshot.docs.isNotEmpty) {
-            print('DEBUG [Admin-Exchange]: User $userName: ${exchangesSnapshot.docs.length} ta pending exchange');
+            print(
+              'DEBUG [Admin-Exchange]: User $userName: ${exchangesSnapshot.docs.length} ta pending exchange',
+            );
             totalPending += exchangesSnapshot.docs.length;
           }
 
           for (final exchangeDoc in exchangesSnapshot.docs) {
             final exchangeData = exchangeDoc.data();
-            print('DEBUG [Admin-Exchange]:   - ${exchangeData['coins']} coin -> ${exchangeData['ucAmount']} UC (${exchangeData['nickname']})');
+            print(
+              'DEBUG [Admin-Exchange]:   - ${exchangeData['coins']} coin -> ${exchangeData['ucAmount']} UC (${exchangeData['nickname']})',
+            );
 
             allExchanges.add({
               'exchange': ExchangeModel.fromFirestore(exchangeDoc),
@@ -869,7 +940,9 @@ class FirestoreService {
             });
           }
         } catch (indexError) {
-          print('DEBUG [Admin-Exchange]: ⚠️ User $userName uchun query xatosi (index yo\'q bo\'lishi mumkin)');
+          print(
+            'DEBUG [Admin-Exchange]: ⚠️ User $userName uchun query xatosi (index yo\'q bo\'lishi mumkin)',
+          );
           print('DEBUG [Admin-Exchange]: Xato: $indexError');
 
           // Fallback - index yo'q bo'lsa, barcha exchanges'ni olamiz va filter qilamiz
@@ -883,7 +956,9 @@ class FirestoreService {
                 .toList();
 
             if (pendingDocs.isNotEmpty) {
-              print('DEBUG [Admin-Exchange]: Fallback: User $userName: ${pendingDocs.length} ta pending exchange (in-memory filter)');
+              print(
+                'DEBUG [Admin-Exchange]: Fallback: User $userName: ${pendingDocs.length} ta pending exchange (in-memory filter)',
+              );
               totalPending += pendingDocs.length;
             }
 
@@ -895,18 +970,26 @@ class FirestoreService {
               });
             }
           } catch (fallbackError) {
-            print('DEBUG [Admin-Exchange]: ❌ Fallback ham muvaffaqiyatsiz: $fallbackError');
+            print(
+              'DEBUG [Admin-Exchange]: ❌ Fallback ham muvaffaqiyatsiz: $fallbackError',
+            );
           }
         }
       }
 
-      print('DEBUG [Admin-Exchange]: $totalChecked ta userdan jami $totalPending ta pending exchange topildi');
+      print(
+        'DEBUG [Admin-Exchange]: $totalChecked ta userdan jami $totalPending ta pending exchange topildi',
+      );
 
-      allExchanges.sort((a, b) => (b['exchange'] as ExchangeModel)
-          .createdAt
-          .compareTo((a['exchange'] as ExchangeModel).createdAt));
+      allExchanges.sort(
+        (a, b) => (b['exchange'] as ExchangeModel).createdAt.compareTo(
+          (a['exchange'] as ExchangeModel).createdAt,
+        ),
+      );
 
-      print('DEBUG [Admin-Exchange]: ${allExchanges.length} ta so\'rov qaytarilmoqda');
+      print(
+        'DEBUG [Admin-Exchange]: ${allExchanges.length} ta so\'rov qaytarilmoqda',
+      );
       print('DEBUG [Admin-Exchange]: ========== YUKLASH TUGADI ==========\n');
 
       return allExchanges;
@@ -922,11 +1005,8 @@ class FirestoreService {
 
   Future<List<TaskModel>> getAllTasks() async {
     try {
-      final snapshot =
-          await _db.collection('tasks').orderBy('order').get();
-      return snapshot.docs
-          .map((doc) => TaskModel.fromFirestore(doc))
-          .toList();
+      final snapshot = await _db.collection('tasks').orderBy('order').get();
+      return snapshot.docs.map((doc) => TaskModel.fromFirestore(doc)).toList();
     } catch (e) {
       print('Error getting all tasks: $e');
       return [];
@@ -973,10 +1053,10 @@ class FirestoreService {
   Future<void> updateSettings(Map<String, dynamic> settings) async {
     try {
       settings['updatedAt'] = FieldValue.serverTimestamp();
-      await _db.collection('settings').doc('app').set(
-            settings,
-            SetOptions(merge: true),
-          );
+      await _db
+          .collection('settings')
+          .doc('app')
+          .set(settings, SetOptions(merge: true));
     } catch (e) {
       print('Error updating settings: $e');
     }
@@ -1149,8 +1229,7 @@ class FirestoreService {
   }
 
   /// E'lonni yangilash
-  Future<void> updateAnnouncement(
-      String id, Map<String, dynamic> data) async {
+  Future<void> updateAnnouncement(String id, Map<String, dynamic> data) async {
     try {
       data['updatedAt'] = Timestamp.now();
       await _db.collection('announcements').doc(id).update(data);
@@ -1173,9 +1252,7 @@ class FirestoreService {
   /// UC buyurtma yaratish
   Future<String?> createUCOrder(UCOrderModel order) async {
     try {
-      final docRef = await _db
-          .collection('uc_orders')
-          .add(order.toFirestore());
+      final docRef = await _db.collection('uc_orders').add(order.toFirestore());
       return docRef.id;
     } catch (e) {
       print('Error creating UC order: $e');
@@ -1208,12 +1285,14 @@ class FirestoreService {
       if (statusFilter != null && statusFilter != 'all') {
         query = query.where('status', isEqualTo: statusFilter);
       }
-      final snapshot = await query
-          .orderBy('createdAt', descending: true)
-          .get();
+      final snapshot = await query.orderBy('createdAt', descending: true).get();
 
       return snapshot.docs
-          .map((doc) => UCOrderModel.fromFirestore(doc as DocumentSnapshot<Map<String, dynamic>>))
+          .map(
+            (doc) => UCOrderModel.fromFirestore(
+              doc as DocumentSnapshot<Map<String, dynamic>>,
+            ),
+          )
           .toList();
     } catch (e) {
       print('Error getting all UC orders: $e');
@@ -1249,7 +1328,10 @@ class FirestoreService {
 
   /// Buyurtmani rad etish (admin)
   Future<void> rejectUCOrder(
-      String orderId, String adminUid, String note) async {
+    String orderId,
+    String adminUid,
+    String note,
+  ) async {
     try {
       await _db.collection('uc_orders').doc(orderId).update({
         'status': 'rejected',
@@ -1264,10 +1346,25 @@ class FirestoreService {
 
   // ==================== PROMO CODE ====================
 
+  /// Bot config dan task_version olish
+  Future<int> getTaskVersion() async {
+    try {
+      final doc = await _db.collection('bot_config').doc('settings').get();
+      if (doc.exists) {
+        return (doc.data()?['task_version'] as num?)?.toInt() ?? 1;
+      }
+      return 1;
+    } catch (e) {
+      print('Error getting task version: $e');
+      return 1;
+    }
+  }
+
   /// Promo kodni tekshirish va ishlatish
   /// Qaytaradi: {'success': bool, 'message': String, 'coins': int}
   Future<Map<String, dynamic>> redeemPromoCode(String uid, String code) async {
     try {
+      // 1. Promo kodni o'qish
       final codeDoc = await _db.collection('promo_codes').doc(code).get();
 
       if (!codeDoc.exists) {
@@ -1280,31 +1377,22 @@ class FirestoreService {
         return {'success': false, 'message': 'already_used', 'coins': 0};
       }
 
-      final coins = (data['coins'] as num?)?.toInt() ?? 5;
+      final coins = (data['coins'] as num?)?.toInt() ?? 20;
+      final taskVersion = (data['task_version'] as num?)?.toInt() ?? 1;
 
-      // Tranzaksiya bilan: kodni ishlatilgan deb belgilash + coin qo'shish
-      await _db.runTransaction((transaction) async {
-        final freshCodeDoc = await transaction.get(
-          _db.collection('promo_codes').doc(code),
-        );
+      // 2. Promo kodni ishlatilgan deb belgilash
+      // Security rules: used==false bo'lgandagina ruxsat beradi
+      await _db.collection('promo_codes').doc(code).update({
+        'used': true,
+        'used_by': uid,
+        'used_at': FieldValue.serverTimestamp(),
+      });
 
-        if (!freshCodeDoc.exists) throw Exception('Code not found');
-
-        final freshData = freshCodeDoc.data() as Map<String, dynamic>;
-        if (freshData['used'] == true) throw Exception('Already used');
-
-        // Kodni ishlatilgan deb belgilash
-        transaction.update(_db.collection('promo_codes').doc(code), {
-          'used': true,
-          'used_by': uid,
-          'used_at': FieldValue.serverTimestamp(),
-        });
-
-        // Foydalanuvchiga coin qo'shish
-        final userRef = _db.collection('users').doc(uid);
-        transaction.update(userRef, {
-          'coins': FieldValue.increment(coins),
-        });
+      // 3. Userga coin qo'shish + lastPromoVersion saqlash
+      await _db.collection('users').doc(uid).update({
+        'coins': FieldValue.increment(coins),
+        'totalCoinsEarned': FieldValue.increment(coins),
+        'lastPromoVersion': taskVersion,
       });
 
       // Keshni tozalash
@@ -1314,6 +1402,10 @@ class FirestoreService {
       return {'success': true, 'message': 'success', 'coins': coins};
     } catch (e) {
       print('Promo code redeem error: $e');
+      if (e.toString().contains('PERMISSION_DENIED')) {
+        // Security rules rad etdi — kod allaqachon ishlatilgan
+        return {'success': false, 'message': 'already_used', 'coins': 0};
+      }
       if (e.toString().contains('Already used')) {
         return {'success': false, 'message': 'already_used', 'coins': 0};
       }

@@ -35,9 +35,9 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
   late AnimationController _animController;
   final TextEditingController _promoController = TextEditingController();
   bool _isRedeemingPromo = false;
+  int _taskVersion = 1;
 
-  // TODO: O'zingizning bot username'ingizni qo'ying
-  static const String _telegramBotUrl = '@Follovertdm_bot';
+  static const String _telegramBotUrl = 'https://t.me/Follovertdm_bot';
 
   Widget _adminWarningBox() {
     final l = AppLocalizations.of(context)!;
@@ -101,12 +101,14 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
       final tasks = await _firestoreService.getActiveTasks();
       final completed = await _firestoreService.getCompletedTaskIdsToday(_uid!);
       final appUser = await _firestoreService.getUser(_uid!);
+      final taskVersion = await _firestoreService.getTaskVersion();
 
       if (mounted) {
         setState(() {
           _tasks = tasks;
           _completedTaskIds = completed;
           _appUser = appUser;
+          _taskVersion = taskVersion;
           _isLoading = false;
         });
       }
@@ -1458,9 +1460,11 @@ Future<void> _showTelegramCodeVerificationDialog(TaskModel task) async {
                               child: _buildReferralSection(l),
                             ),
 
-                          SliverToBoxAdapter(
-                            child: _buildPromoCodeSection(l),
-                          ),
+                          // Promo bo'lim: faqat user hali bu versiyada ishlatmagan bo'lsa ko'rsatish
+                          if (_appUser != null && _appUser!.lastPromoVersion < _taskVersion)
+                            SliverToBoxAdapter(
+                              child: _buildPromoCodeSection(l),
+                            ),
 
                           SliverPadding(
                             padding: const EdgeInsets.all(16),
@@ -1537,6 +1541,12 @@ Future<void> _showTelegramCodeVerificationDialog(TaskModel task) async {
       final coins = result['coins'] as int;
       HapticFeedback.heavyImpact();
       _promoController.clear();
+      // Promo bo'limni yashirish uchun lastPromoVersion yangilash
+      if (_appUser != null) {
+        setState(() {
+          _appUser = _appUser!.copyWith(lastPromoVersion: _taskVersion);
+        });
+      }
       widget.onUpdate();
       _showSnackBar(l.promoCodeSuccess(coins));
     } else {

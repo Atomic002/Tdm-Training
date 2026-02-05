@@ -1,132 +1,99 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
     // ==================== HELPER FUNCTIONS ====================
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(uid) {
-      return isSignedIn() && request.auth.uid == uid;
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
     // ==================== USERS COLLECTION ====================
 
     match /users/{userId} {
-      // Barchasi o'qiy oladi (leaderboard uchun)
       allow read: if isSignedIn();
-
-      // Faqat o'z accountini yaratish
       allow create: if isSignedIn() && request.auth.uid == userId;
-
-      // O'z accountini yangilash
       allow update: if isSignedIn() && request.auth.uid == userId;
-
-      // Adminlar har qanday userni yangilashi mumkin
-      allow update: if isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-
-      // Referral tizimi - boshqa userning faqat coins va referralCount ni yangilash
+      allow update: if isAdmin();
       allow update: if isSignedIn() &&
         request.auth.uid != userId &&
-        // Faqat bu fieldlar o'zgarishi mumkin
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coins', 'totalCoinsEarned', 'referralCount']) &&
-        // coins va totalCoinsEarned faqat oshishi mumkin
         request.resource.data.coins >= resource.data.coins &&
         request.resource.data.totalCoinsEarned >= resource.data.totalCoinsEarned &&
-        // referralCount faqat 1 ga oshishi mumkin
         request.resource.data.referralCount == resource.data.referralCount + 1;
+      allow delete: if isAdmin();
 
-      // Faqat adminlar o'chirishi mumkin
-      allow delete: if isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
-
-      // ---------- EXCHANGES SUBCOLLECTION ----------
       match /exchanges/{exchangeId} {
-        // O'z exchangelarini yoki adminlar ko'rishi mumkin
-        allow read: if isSignedIn() && (
-          request.auth.uid == userId ||
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true
-        );
-
-        // Faqat o'z exchangelarini yaratish
+        allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
         allow create: if isSignedIn() && request.auth.uid == userId;
-
-        // Faqat adminlar update/delete qilishi mumkin
-        allow update, delete: if isSignedIn() &&
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+        allow update, delete: if isAdmin();
       }
     }
 
-    // ==================== TASKS COLLECTION ====================
+    // ==================== TASKS ====================
 
     match /tasks/{taskId} {
-      // Barchasi o'qiy oladi
       allow read: if isSignedIn();
-
-      // Faqat adminlar yozishi mumkin
-      allow write: if isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow write: if isAdmin();
     }
 
     // ==================== TASK COMPLETIONS ====================
 
     match /task_completions/{completionId} {
-      // Barchasi o'qiy oladi (statistika uchun)
       allow read: if isSignedIn();
-
-      // Faqat o'z completionini yaratish
-      allow create: if isSignedIn() &&
-        request.auth.uid == request.resource.data.uid;
-
-      // Update va delete yo'q
+      allow create: if isSignedIn() && request.auth.uid == request.resource.data.uid;
       allow update, delete: if false;
     }
 
-    // ==================== SETTINGS COLLECTION ====================
+    // ==================== SETTINGS ====================
 
     match /settings/{document} {
-      // Barchasi o'qiy oladi (public settings)
       allow read: if isSignedIn();
-
-      // Faqat adminlar yozishi mumkin
-      allow write: if isSignedIn() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+      allow write: if isAdmin();
     }
 
-    // ==================== PROMO CODES (Telegram Bot) ====================
+    // ==================== PROMO CODES ====================
 
     match /promo_codes/{code} {
-      // O'qish - autentifikatsiya qilingan foydalanuvchilar
       allow read: if isSignedIn();
-
-      // Yaratish - faqat Admin SDK (bot) orqali
       allow create: if false;
-
-      // Yangilash - faqat ishlatilmagan kodni ishlatilgan deb belgilash
       allow update: if isSignedIn() &&
-        // Kod hali ishlatilmagan bo'lishi kerak
         resource.data.used == false &&
-        // Faqat used, used_by, used_at fieldlari o'zgarishi mumkin
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['used', 'used_by', 'used_at']) &&
-        // used = true bo'lishi kerak
         request.resource.data.used == true &&
-        // used_by = o'zi bo'lishi kerak
         request.resource.data.used_by == request.auth.uid;
-
-      // O'chirish mumkin emas
       allow delete: if false;
     }
 
-    // ==================== BOT CONFIG (faqat Admin SDK) ====================
+    // ==================== BOT CONFIG ====================
 
     match /bot_config/{document} {
-      allow read, write: if false;
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     match /bot_users/{document} {
       allow read, write: if false;
+    }
+
+    // ==================== ANNOUNCEMENTS ====================
+
+    match /announcements/{announcementId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ==================== UC ORDERS ====================
+
+    match /uc_orders/{orderId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin();
     }
   }
 }

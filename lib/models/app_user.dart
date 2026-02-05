@@ -18,6 +18,7 @@ class AppUser {
   final String? referredBy;
   final int referralCount;
   final bool isAdmin;
+  final int lastPromoVersion;
   final DateTime createdAt;
   final DateTime lastLoginAt;
 
@@ -38,6 +39,7 @@ class AppUser {
     this.referredBy,
     this.referralCount = 0,
     this.isAdmin = false,
+    this.lastPromoVersion = 0,
     required this.createdAt,
     required this.lastLoginAt,
   });
@@ -62,6 +64,7 @@ class AppUser {
       referredBy: data['referredBy'],
       referralCount: data['referralCount'] ?? 0,
       isAdmin: data['isAdmin'] ?? false,
+      lastPromoVersion: data['lastPromoVersion'] ?? 0,
       createdAt:
           (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       lastLoginAt:
@@ -90,6 +93,7 @@ class AppUser {
       'referredBy': referredBy,
       'referralCount': referralCount,
       'isAdmin': isAdmin,
+      'lastPromoVersion': lastPromoVersion,
       'createdAt': Timestamp.fromDate(createdAt),
       'lastLoginAt': Timestamp.fromDate(lastLoginAt),
     };
@@ -106,6 +110,7 @@ class AppUser {
     DateTime? lastDailyBonusDate,
     int? referralCount,
     bool? isAdmin,
+    int? lastPromoVersion,
     DateTime? lastLoginAt,
   }) {
     return AppUser(
@@ -125,6 +130,7 @@ class AppUser {
       referredBy: referredBy,
       referralCount: referralCount ?? this.referralCount,
       isAdmin: isAdmin ?? this.isAdmin,
+      lastPromoVersion: lastPromoVersion ?? this.lastPromoVersion,
       createdAt: createdAt,
       lastLoginAt: lastLoginAt ?? this.lastLoginAt,
     );

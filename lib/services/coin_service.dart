@@ -6,19 +6,22 @@ class CoinService {
   static const int maxDailyAds = 15;
   static const int maxDailyReactionGames = 30;
   static const int maxDailyMiniPubgGames = 20;
-  static const int maxDailyGames = maxDailyReactionGames + maxDailyMiniPubgGames; // Jami
+  static const int maxDailyGames =
+      maxDailyReactionGames + maxDailyMiniPubgGames; // Jami
   static const int maxCoinsPerGame = 10;
 
   // UC exchange rates (coin: UC)
   static const Map<int, int> ucExchangeRates = {
-     8500: 60,      // 10 UC
-    13000: 120,     // 20 UC
-    18000: 325,    // 325 UC
-    22000: 660,    // 660 UC    // 660 UC
-    40000: 1200,   // 1200 UC
-    60000: 2500,   // 2500 UC
-    80000: 3000,   // 3000 UC
-    160000: 5000, 
+    8500: 60, // 10 UC
+    13000: 120, // 20 UC
+    16000: 180, // 20 UC
+
+    18000: 325, // 325 UC
+    22000: 660, // 660 UC    // 660 UC
+    40000: 1200, // 1200 UC
+    60000: 2500, // 2500 UC
+    80000: 3000, // 3000 UC
+    160000: 7000,
   };
 
   static const String _coinsKey = 'coins';
@@ -29,7 +32,6 @@ class CoinService {
 
   Future<SharedPreferences> get _prefs async =>
       await SharedPreferences.getInstance();
-
 
   // Get current coins
   Future<int> getCoins() async {
